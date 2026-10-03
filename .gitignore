@@ -1,0 +1,26 @@
+# Local signing credentials and machine configuration
+/port.keystore
+/local.properties
+/signing.properties
+*.jks
+*.keystore
+
+# Generated Android and Gradle state
+/.gradle/
+/.kotlin/
+/app/.cxx/
+/app/build/
+/build/
+
+# Built APKs and local diagnostics
+/module/*.apk
+*.log
+*.tmp
+__pycache__/
+*.pyc
+
+# IDE and OS state
+/.idea/
+*.iml
+.DS_Store
+Thumbs.db

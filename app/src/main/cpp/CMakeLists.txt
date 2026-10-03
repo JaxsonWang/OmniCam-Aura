@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.22.1)
+project(aura_native CXX)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+add_library(aura_native SHARED native_entry.cpp gr_basictone.cpp pop_path_remap.cpp)
+target_compile_options(aura_native PRIVATE -O2 -fvisibility=hidden)
+target_link_libraries(aura_native log dl)
