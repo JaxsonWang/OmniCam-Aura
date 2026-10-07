@@ -1630,6 +1630,19 @@
    "in": "com.oplus.camera.control.MainShutterButton",
    "name": "k1",
    "type": "int"
+  },
+  "BitmapUtil.cropCenterByScale": {
+   "kind": "method",
+   "params": [
+    "android.graphics.Bitmap",
+    "float",
+    "float"
+   ],
+   "ret": "android.graphics.Bitmap",
+   "static": true,
+   "strings": [
+    "cropCenterBitmapByScale, error, sw: "
+   ]
   }
  },
  "gallery": {

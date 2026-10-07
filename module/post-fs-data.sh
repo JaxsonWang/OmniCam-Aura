@@ -57,7 +57,7 @@ bind_merged_dir() {
 : > "$LOG"
 log "begin"
 
-for NAME in camera_unit_config camera_unit_feature_config.protobuf oplus_camera_config oplus_camera_algo_switch_config oplus_camera_aps_config; do
+for NAME in camera_unit_config camera_unit_feature_config.protobuf oplus_camera_config oplus_camera_algo_switch_config oplus_camera_aps_config oplus_camera_preview_decision_config.json; do
     bind_file "$MODDIR/payload/$NAME" "/odm/etc/camera/config/$NAME"
 done
 

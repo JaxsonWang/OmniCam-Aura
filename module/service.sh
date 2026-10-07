@@ -35,7 +35,7 @@ set_config() {
     set_config com.oplus.camera.mode.data.db.version 102
 set_config com.oplus.available.gr.mode.zoomvalues "$GR_AVAILABLE"
 set_config com.oplus.gr.mode.marked.zoomvalues "$GR_MARKED"
-set_config com.oplus.camera.capture.hdr.cap.mode.value 'common,portrait,professional,night,highPixel,xpan,underWater,telephoto,gr'
+set_config com.oplus.camera.capture.hdr.cap.mode.value 'common,portrait,professional,night,highPixel,xpan,underWater,telephoto,gr,retroCamera'
 set_config com.oplus.camera.preview.hdr.cap.mode.value 'common,professional,night,highPixel,xpan,underWater,telephoto,gr'
 
 chown "$APP_UID:$APP_UID" "$PREF_FILE"

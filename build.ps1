@@ -1,9 +1,9 @@
 $ErrorActionPreference = 'Stop'
 $project = $PSScriptRoot
-$python = (Get-Command python -ErrorAction Stop).Source
-$version = '1.0.0'
+$python = if ($env:OMNICAM_PYTHON) { $env:OMNICAM_PYTHON } else { (Get-Command python -ErrorAction Stop).Source }
+$version = '1.0.1'
 $apkName = "omnicam-aura-$version.apk"
-$archive = Join-Path (Split-Path -Parent $project) "OmniCam-Aura-$version-KSU.zip"
+$archive = Join-Path $project "OmniCam-Aura-$version-KSU.zip"
 $gitBash = Join-Path $env:ProgramFiles 'Git/bin/bash.exe'
 if (Test-Path -LiteralPath $gitBash) {
     & $gitBash -n (Join-Path $project 'module/post-fs-data.sh') (Join-Path $project 'module/post-mount.sh') (Join-Path $project 'module/service.sh')

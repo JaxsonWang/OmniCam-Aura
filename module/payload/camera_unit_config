@@ -1432,7 +1432,13 @@
         "capture_raw10_fullsize": "rear_main"
       },
       {
+        "capture_raw10_fullsize": "rear_wide"
+      },
+      {
         "capture_raw10_fullsize": "rear_tele"
+      },
+      {
+        "capture_raw10_fullsize": "rear_ultra_tele"
       },
       {
         "raw10_high_output": "rear_ultra_tele"
