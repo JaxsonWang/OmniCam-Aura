@@ -8,6 +8,7 @@ import local.jiege.hook.gr.GrPort;
 import local.jiege.hook.highpixel.HighPixelEffects;
 import local.jiege.hook.pop.PopPort;
 import local.jiege.hook.seamless.SeamlessBlurGuard;
+import local.jiege.hook.tilt.TiltShiftCapture;
 import local.jiege.hook.x10.X10FilterPort;
 
 public final class ModuleEntry implements IXposedHookLoadPackage, IXposedHookZygoteInit {
@@ -24,6 +25,7 @@ public final class ModuleEntry implements IXposedHookLoadPackage, IXposedHookZyg
             FilterGroupInjector.installCamera(loader);
             X10FilterPort.installCamera(loader);
             HighPixelEffects.installCamera(loader);
+            TiltShiftCapture.installCamera(loader);
             SeamlessBlurGuard.installCamera(loader);
             GrPort.installCamera(loader);
         }

@@ -87,6 +87,16 @@ PLD_APP="$APP/files/odm/etc/camera/pld_watermark"
 set_config com.oplus.feature.retro.camera.support 1
 # Flash brightness slider (柔和/反差); the camera drives it through com.oplus.flash.IntensityControl.
 set_config com.oplus.flashlevel.configurable.support 1
+set_config com.oplus.feature.tilt.shift.photo.support 1
+# Tilt-shift: mode_data.db is built once from the feature flags. If it has no tiltShift row yet, drop it once
+# (the marker keeps this to a single time) so the camera recreates it with the tilt-shift flag on.
+TILT_MARK="$MODDIR/tilt_db_reset"
+TILT_DB="$APP/databases/mode_data.db"
+if [ ! -f "$TILT_MARK" ] && [ -f "$TILT_DB" ] && ! grep -aq tiltShift "$TILT_DB"; then
+    am force-stop com.oplus.camera
+    rm -f "$TILT_DB" "$TILT_DB-journal" "$TILT_DB-wal" "$TILT_DB-shm"
+fi
+touch "$TILT_MARK"
 chown "$APP_UID:$APP_UID" "$PREF_FILE"
 chmod 0660 "$PREF_FILE"
 restorecon "$PREF_FILE" 2>/dev/null || true

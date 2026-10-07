@@ -4272,6 +4272,12 @@
     "Value": "1"
   },
   {
+    "VendorTag": "com.oplus.feature.tilt.shift.photo.support",
+    "Type": "Byte",
+    "Count": "1",
+    "Value": "1"
+  },
+  {
     "VendorTag": "com.oplus.feature.retro.camera.livephoto.output.size",
     "Type": "Int32",
     "Count": "8",

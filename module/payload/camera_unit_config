@@ -24,7 +24,8 @@
       "long_exposure_mode",
       "under_water_mode",
       "gr_mode",
-      "retro_camera_mode"
+      "retro_camera_mode",
+      "tilt_shift_mode"
     ],
     "rear_main": [
       "video_mode",
@@ -42,7 +43,8 @@
       "high_pixel_mode",
       "under_water_mode",
       "gr_mode",
-      "retro_camera_mode"
+      "retro_camera_mode",
+      "tilt_shift_mode"
     ],
     "rear_tele": [
       "video_mode",
@@ -54,7 +56,8 @@
       "telephoto_video_mode",
       "telephoto_capture_mode",
       "gr_mode",
-      "retro_camera_mode"
+      "retro_camera_mode",
+      "tilt_shift_mode"
     ],
     "rear_ultra_tele": [
       "video_mode",
@@ -67,7 +70,8 @@
       "slowvideo_mode",
       "long_exposure_mode",
       "gr_mode",
-      "retro_camera_mode"
+      "retro_camera_mode",
+      "tilt_shift_mode"
     ],
     "front_main": [
       "video_mode",
@@ -90,7 +94,8 @@
       "fastvideo_mode",
       "professional_mode",
       "gr_mode",
-      "retro_camera_mode"
+      "retro_camera_mode",
+      "tilt_shift_mode"
     ],
     "rear_main_front_main": [
       "multi_camera_mode"
@@ -1867,6 +1872,31 @@
   },
   "capture_stream_number": {
     "photo_mode": {
+      "rear_wide": {
+        "2dol": "2",
+        "3dol": "3"
+      },
+      "rear_main": {
+        "2dol": "2",
+        "3dol": "3"
+      },
+      "rear_tele": {
+        "2dol": "2",
+        "3dol": "3"
+      },
+      "rear_ultra_tele": {
+        "2dol": "2",
+        "3dol": "3"
+      },
+      "rear_sat": {
+        "2dol": "2",
+        "3dol": "3"
+      },
+      "front_main": {
+        "2dol": "2"
+      }
+    },
+    "tilt_shift_mode": {
       "rear_wide": {
         "2dol": "2",
         "3dol": "3"
