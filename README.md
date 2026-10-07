@@ -2,7 +2,7 @@
 
 ![OmniCam Aura 图标](artwork/OmniCam-Aura.png)
 
-为 PMA110 相机 7.006.77 移植的无界面 KernelSU 模块与 LSPosed 插件，基于手机上的 OmniCam Ultra 1.4.1（266）版本拆分。
+PMA110 相机 7.006.77 的无界面 KernelSU 模块与 LSPosed 插件。
 
 ## 功能
 
@@ -25,8 +25,6 @@ Aura 与 OmniCam Muse 的相机 Hook 和挂载资源重叠，只启用其中一�
 在 Windows 上安装 JDK 17、Android SDK（含 API 37、Build Tools、NDK 29.0.14206865 和 CMake 3.22.1）、Python 3 与 Git，然后运行 `./build.ps1`。脚本会生成配套 APK 和位于项目上级目录的 KernelSU ZIP，并进行结构与签名检查。设置 `ANDROID_HOME`／`ANDROID_SDK_ROOT` 或通过 `local.properties` 指向 SDK。
 
 构建默认使用 Android 调试签名。若要使用自己的发布证书，设置 `OMNICAM_KEYSTORE`、`OMNICAM_STORE_PASSWORD`、`OMNICAM_KEY_ALIAS` 和 `OMNICAM_KEY_PASSWORD`；证书与密码均不应提交到仓库。不同证书签发的 APK 不能直接覆盖安装。
-
-若持有 Ultra 1.4.1 的原始模块 ZIP，可在构建前设置 `OMNICAM_BASELINE_ZIP`，验证器会额外比对 Aura 沿用的相机资源。
 
 ## 来源与许可
 

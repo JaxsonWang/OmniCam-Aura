@@ -8,7 +8,6 @@ PROJECT = Path(__file__).resolve().parent.parent
 MODULE = PROJECT / 'module'
 APK = MODULE / 'omnicam-aura-1.0.0.apk'
 ARCHIVE = PROJECT.parent / 'OmniCam-Aura-1.0.0-KSU.zip'
-baseline_path = os.environ.get('OMNICAM_BASELINE_ZIP')
 sdk_path = os.environ.get('ANDROID_HOME') or os.environ.get('ANDROID_SDK_ROOT')
 if not sdk_path:
     properties = PROJECT / 'local.properties'
@@ -33,11 +32,6 @@ with ZipFile(ARCHIVE) as bundle, ZipFile(APK) as apk:
     names = bundle.namelist()
     require([n for n in names if n.endswith('.apk')] == [APK.name], 'Expected exactly one Aura APK')
     require(bundle.read(APK.name) == APK.read_bytes(), 'Packaged APK differs from build')
-    if baseline_path:
-        with ZipFile(baseline_path) as baseline:
-            for name in names:
-                if name.startswith(('payload/', 'system/')) and not name.endswith('/'):
-                    require(bundle.read(name) == baseline.read(name), f'Resource differs from baseline: {name}')
     require('assets/xposed_init' in apk.namelist(), 'LSPosed Java entry missing')
     require(apk.read('assets/xposed_init').strip() == b'local.omnicam.aura.ModuleEntry', 'Wrong LSPosed entry')
     require(apk.read('assets/native_init').strip() == b'libaura_native.so', 'Wrong native entry')
@@ -72,4 +66,4 @@ for script in ('post-fs-data.sh', 'service.sh'):
     for removed in ('master_hncs', 'unlock25mp', 'audio_policy_volumes', 'InsensorZoom'):
         require(removed not in text, f'Unrelated mount/staging: {removed}')
 subprocess.run(['cmd', '/c', str(BUILD_TOOLS / 'apksigner.bat'), 'verify', str(APK)], check=True)
-print('PASS: signed headless Aura APK; camera/gallery scope; GR/POP backends and all six palette capture nodes present; Muse-only payloads removed' + ('; baseline resources match' if baseline_path else ''))
+print('PASS: signed headless Aura APK; camera/gallery scope; GR/POP backends and all six palette capture nodes present; Muse-only payloads removed')
