@@ -2,12 +2,12 @@
 
 ![OmniCam Aura 图标](artwork/OmniCam-Aura.png)
 
-面向 PMA110 和 PLK110 的无界面 KernelSU 模块与 LSPosed 插件。当前本地验证版本为 **1.1.1**（`versionCode=8`）。
+面向 PMA110 和 PLK110 的无界面 KernelSU 模块与 LSPosed 插件。当前发行版本为 **1.1.1**（`versionCode=8`）。
 
 | 机型 | 固件／相机 | 验证范围 |
 | --- | --- | --- |
 | PMA110 | 相机 7.006.77 | 保留原有适配；历史版本已安装，未在本次重新实拍 |
-| OnePlus PLK110 | Android 17，`PLK110_17.0.0.102(CN01)`，相机 7.006.100（versionCode 60000） | 本地真机审查与回归中，实际验证范围见 RELEASE_NOTES.md |
+| OnePlus PLK110 | Android 17，`PLK110_17.0.0.102(CN01)`，相机 7.006.100（versionCode 60000） | 已验证范围与限制见 RELEASE_NOTES.md |
 
 ## 功能
 
