@@ -82,10 +82,16 @@
       {
         "mode": "PREREQUISITES_MASTER",
         "condition": {
-          "eq": [
-            "captureMode",
-            "APS_CAPMODE_MASTER"
-          ]
+          "or": {
+            "eq": [
+              "captureMode",
+              "APS_CAPMODE_MASTER"
+            ],
+            "eq1": [
+              "captureMode",
+              "APS_CAPMODE_GRMODE"
+            ]
+          }
         },
         "prerequisiteResult": null,
         "nextMode": "PREREQUISITES_NORMAL",
@@ -14249,10 +14255,6 @@
         "condition": {
           "or": {
             "or": {
-              "eq": [
-                "captureMode",
-                "APS_CAPMODE_MASTER"
-              ],
               "eq1": [
                 "captureMode",
                 "APS_CAPMODE_XPAN"
@@ -14265,6 +14267,16 @@
                 "eq1": [
                   "paramsHolder->dolby_enable",
                   true
+                ]
+              },
+              "or": {
+                "eq": [
+                  "captureMode",
+                  "APS_CAPMODE_MASTER"
+                ],
+                "eq1": [
+                  "captureMode",
+                  "APS_CAPMODE_GRMODE"
                 ]
               }
             },
@@ -14363,10 +14375,6 @@
               },
               "and": {
                 "or2": {
-                  "eq": [
-                    "captureMode",
-                    "APS_CAPMODE_MASTER"
-                  ],
                   "eq1": [
                     "captureMode",
                     "APS_CAPMODE_HIGH_PIC_SIZE"
@@ -14390,7 +14398,17 @@
                   "eq6": [
                     "captureMode",
                     "APS_CAPMODE_LONGEXPOSURE"
-                  ]
+                  ],
+                  "or": {
+                    "eq": [
+                      "captureMode",
+                      "APS_CAPMODE_MASTER"
+                    ],
+                    "eq1": [
+                      "captureMode",
+                      "APS_CAPMODE_GRMODE"
+                    ]
+                  }
                 },
                 "eq": [
                   "logicCameraId",
@@ -15127,10 +15145,16 @@
                     true
                   ]
                 },
-                "eq": [
-                  "captureMode",
-                  "APS_CAPMODE_MASTER"
-                ]
+                "or": {
+                  "eq": [
+                    "captureMode",
+                    "APS_CAPMODE_MASTER"
+                  ],
+                  "eq1": [
+                    "captureMode",
+                    "APS_CAPMODE_GRMODE"
+                  ]
+                }
               },
               "eq": [
                 "paramsHolder->ultra_hdr_enable",

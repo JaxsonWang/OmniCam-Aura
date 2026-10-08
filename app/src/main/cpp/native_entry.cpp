@@ -6,6 +6,7 @@
 #include <sys/system_properties.h>
 
 #include "native_hooks.h"
+#include "device_policy.h"
 
 namespace {
 
@@ -24,9 +25,7 @@ bool supportedDevice() {
     char firmware[PROP_VALUE_MAX]{};
     __system_property_get("ro.product.model", model);
     __system_property_get("ro.build.display.id", firmware);
-    return std::strcmp(model, "PMA110") == 0 ||
-        (std::strcmp(model, "PLK110") == 0 &&
-         std::strcmp(firmware, "PLK110_17.0.0.102(CN01)") == 0);
+    return aura::devicePolicyMatches(model, firmware);
 }
 
 void onLibraryLoaded(const char *name, void *handle) {

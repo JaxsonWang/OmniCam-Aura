@@ -1,12 +1,12 @@
 $ErrorActionPreference = 'Stop'
 $project = $PSScriptRoot
 $python = if ($env:OMNICAM_PYTHON) { $env:OMNICAM_PYTHON } else { (Get-Command python -ErrorAction Stop).Source }
-$version = '1.0.1'
+$version = '1.1.1'
 $apkName = "omnicam-aura-$version.apk"
 $archive = Join-Path $project "OmniCam-Aura-$version-KSU.zip"
 $gitBash = Join-Path $env:ProgramFiles 'Git/bin/bash.exe'
 if (Test-Path -LiteralPath $gitBash) {
-    & $gitBash -n (Join-Path $project 'module/post-fs-data.sh') (Join-Path $project 'module/post-mount.sh') (Join-Path $project 'module/service.sh')
+    & $gitBash -n (Join-Path $project 'module/post-fs-data.sh') (Join-Path $project 'module/service.sh')
     if ($LASTEXITCODE -ne 0) { throw 'module shell syntax failed' }
 }
 $drive = (70..90 | ForEach-Object { [char]$_ } | Where-Object { -not (Test-Path "$($_):\") } | Select-Object -Last 1)

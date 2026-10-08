@@ -12,12 +12,11 @@ import local.jiege.hook.common.SuperCall;
 import local.jiege.hook.common.Symbols;
 
 /**
- * GR port: makes the realme GR mode (app GrMode, SDK GRCapMode) run on PMA110.
+ * GR 模式入口、应用侧行为和 SDK 会话适配。
  *
- * PMA110's camera ships the GR mode classes but not a working GR pipeline. The GR mode is run as
- * the professional (master) mode underneath: app and SDK methods that the GR classes lack or get
- * wrong are delegated to the professional implementations, and the UI is adjusted for GR.
- * App classes and members are symbols (assets/symbols.json); the SDK keeps its names.
+ * SDK 的 GRCapMode 本身继承 ProfessionalMode。PMA110 沿用把 GR 覆盖方法委派给父类的
+ * 兼容逻辑；PLK110 保留 GR 的原生 SDK 身份，只在参数进入 HAL 时选择大师模式调校。
+ * 应用符号由指纹解析；SDK 类名保持原样。
  */
 final class GrModeHooks {
     private static final String TAG = "RicohGrPort";
@@ -30,7 +29,11 @@ final class GrModeHooks {
         SuperCall.verify();
         hookModeEntry(symbols);
         hookAppModeInheritance(symbols);
-        hookSdkModeInheritance(classLoader);
+        if ("PLK110".equals(android.os.Build.MODEL)) {
+            GrHalSession.install(classLoader);
+        } else {
+            hookSdkModeInheritance(classLoader);
+        }
         GrState.init(symbols);
         Log.guard(TAG, "GR entrance buttons", () -> hookEntranceButtons(symbols, classLoader));
         Log.guard(TAG, "GR effect branch", () -> hookMasterEffectBranch(symbols));

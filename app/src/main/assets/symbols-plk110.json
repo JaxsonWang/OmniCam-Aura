@@ -27,6 +27,77 @@
     "Zoom.fadeLabels": {
       "kind": "method", "in": "com.oplus.camera.feature.zoom.view.ZoomSeekBar",
       "name": "n", "params": [], "ret": "void"
+    },
+    "PreviewMask.draw": {
+      "kind": "method",
+      "params": [
+        "android.graphics.RectF",
+        "float",
+        "float[]",
+        "float"
+      ],
+      "ret": "void",
+      "strings": [
+        "uRectCenter",
+        "uRectSize",
+        "uCornerRadius",
+        "uHdrColorMask"
+      ]
+    },
+    "PreviewMask.canvas": {
+      "kind": "class",
+      "ownerOf": "@PreviewMask.draw"
+    },
+    "PreviewMask.program": {
+      "kind": "class",
+      "strings": [
+        "loadShader, Compile shader error!\ncode: ",
+        "aPosition",
+        "uMatrix"
+      ]
+    },
+    "PreviewMask.shader": {
+      "kind": "field",
+      "in": "@PreviewMask.canvas",
+      "type": "@PreviewMask.program",
+      "readBy": [
+        "@PreviewMask.draw"
+      ],
+      "static": false
+    },
+    "PreviewMask.shaderValid": {
+      "kind": "method",
+      "in": "@PreviewMask.program",
+      "params": [],
+      "ret": "boolean"
+    },
+    "InverseLight.supported": {
+      "kind": "method",
+      "params": [],
+      "ret": "boolean",
+      "strings": [
+        "com.oplus.feature.colorful.screen.torch.config"
+      ],
+      "numbers": [
+        4
+      ],
+      "static": true
+    },
+    "InverseLight.supportCache": {
+      "kind": "field",
+      "type": "java.lang.Boolean",
+      "readBy": [
+        "@InverseLight.supported"
+      ],
+      "static": true
+    }
+  },
+  "gallery": {
+    "Section.style": {
+      "kind": "field",
+      "in": "com.oplus.gallery.photoeditor.editingvvm.watermarkCamera.WatermarkCameraSection",
+      "name": "A0",
+      "type": "java.lang.String"
     }
   }
 }

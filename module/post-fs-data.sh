@@ -8,6 +8,28 @@ log() {
     echo "$1" >> "$LOG"
 }
 
+mount_state_log() {
+    log "$1"
+}
+# shellcheck source=module/mount-state.sh
+. "$MODDIR/mount-state.sh"
+
+finish_mounts() {
+    RESULT=$?
+    [ "$RESULT" -ne 0 ] || return 0
+    log "FAILED exit=$RESULT; rolling back configuration mounts"
+    if rollback_mount_entries "$MOUNTED_TARGETS" >> "$LOG" 2>&1; then
+        rm -f "$MOUNT_STATE_FILE"
+    else
+        log 'rollback incomplete; mounted-targets retained'
+    fi
+    # 元模块随后读取此标记，不再叠加与配置不一致的算法库。
+    rm -f "$MODDIR/mount-ready"
+    touch "$MODDIR/skip_mount"
+    trap - EXIT HUP INT TERM
+    exit "$RESULT"
+}
+
 bind_file() {
     SOURCE="$1"
     TARGET="$2"
@@ -15,6 +37,7 @@ bind_file() {
     chmod 0644 "$SOURCE"
     chcon u:object_r:vendor_configs_file:s0 "$SOURCE" 2>> "$LOG"
     if mount --bind "$SOURCE" "$TARGET" >> "$LOG" 2>&1; then
+        mount_state_record "$SOURCE" "$TARGET"
         log "file bind ok $TARGET"
     else
         log "file bind FAIL $TARGET"
@@ -47,8 +70,8 @@ bind_merged_dir() {
         cp -a "$EXTRA"/. "$DEST"/
     fi
     label_tree "$DEST"
-    log "live_count=$(ls "$LIVE" | wc -l) merged_count=$(ls "$DEST" | wc -l)"
     if mount --bind "$DEST" "$TARGET" >> "$LOG" 2>&1; then
+        mount_state_record "$DEST" "$TARGET"
         log "dir bind ok $TARGET"
     else
         log "dir bind FAIL $TARGET"
@@ -58,21 +81,27 @@ bind_merged_dir() {
 
 : > "$LOG"
 rm -f "$MODDIR/mount-ready"
-trap 'RESULT=$?; if [ "$RESULT" -ne 0 ]; then log "FAILED exit=$RESULT"; touch "$MODDIR/skip_mount"; fi' EXIT
 if [ -f "$MODDIR/skip_mount" ]; then
     log '挂载已被阻止，修复原因后请重新安装模块'
     exit 1
 fi
+mount_state_reset
+trap finish_mounts EXIT
+trap 'exit 1' HUP INT TERM
 # shellcheck source=module/device.sh
 if ! . "$MODDIR/device.sh" >> "$LOG" 2>&1; then
     # 元模块随后才读取 skip_mount，阻止固件更新后自动覆盖原厂算法库。
     exit 1
 fi
 log "begin device=$DEVICE"
+# shellcheck source=module/inverse-light.sh
+. "$MODDIR/inverse-light.sh"
+prepare_inverse_light_config /data/adb/omnicam_aura/inverse-light >> "$LOG" 2>&1
 
 for SOURCE in "$CONFIG_DIR"/*; do
     [ -f "$SOURCE" ] || continue
     NAME=${SOURCE##*/}
+    if [ "$NAME" = oplus_camera_config ]; then SOURCE=$CAMERA_CONFIG_SOURCE; fi
     case "$NAME" in
         camera_unit_config|camera_unit_feature_config.protobuf|oplus_camera_config|oplus_camera_algo_switch_config|oplus_camera_aps_config|oplus_camera_preview_decision_config.json)
             bind_file "$SOURCE" "/odm/etc/camera/config/$NAME"
@@ -105,6 +134,7 @@ if [ "$BIND_ISP" -eq 1 ]; then
     chmod 0644 "$SOURCE"
     chcon u:object_r:vendor_file:s0 "$SOURCE" 2>>"$LOG"
     if mount --bind "$SOURCE" "$TARGET" >>"$LOG" 2>&1; then
+        mount_state_record "$SOURCE" "$TARGET"
         log "isp bind ok $TARGET"
     else
         log "isp bind FAIL $TARGET"
@@ -117,4 +147,6 @@ if [ "$BIND_GAMMA" -eq 1 ]; then
     bind_file "$MODDIR/payload/gamma/$NAME" "/odm/etc/camera/$NAME"
   done
 fi
+# 此标记只表示本脚本的配置挂载全部完成；算法库随后由挂载元模块提供。
+touch "$MODDIR/mount-ready"
 log "end"

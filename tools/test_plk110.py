@@ -2,6 +2,7 @@
 
 from copy import deepcopy
 from pathlib import Path
+import json
 import shutil
 import subprocess
 import tempfile
@@ -15,28 +16,46 @@ from prepare_plk110 import (
 class ProfileTests(unittest.TestCase):
     def test_config_preserves_duplicate_vendor_tag_order(self):
         def entry(key, value):
-            return {"VendorTag": key, "Type": "String", "Count": "1", "Value": value}
+            return {"VendorTag": key, "Type": "String",
+                    "Count": str(len(value.split(","))), "Value": value}
         duplicates = [entry("stock.duplicate", "0"), entry("stock.duplicate", "1")]
+        preview_key = "com.oplus.camera.preview.hdr.cap.mode.value"
+        capture_key = "com.oplus.camera.capture.hdr.cap.mode.value"
+        sdr_conversion_key = "com.oplus.camera.sdr.to.hdr.support.rear.mode.list"
+        sdr_output_key = "com.oplus.camera.preview.hdr.display.transform.sdr.mode.value"
         stock = duplicates + [entry(key, value) for key, value in (
             ("com.oplus.pro.zoom.marked.zoomvalues", "0.6(16),1(24),3.5(85),7(170)"),
-            ("com.oplus.camera.preview.hdr.cap.mode.value", "professional"),
-            ("com.oplus.camera.capture.hdr.cap.mode.value", "professional"),
+            (preview_key, "common,professional,night,highPixel,underWater"),
+            ("com.oplus.camera.preview.hdr.brightness.ratio", "5"),
+            (capture_key, "professional"),
+            (sdr_conversion_key, "photo_mode,high_pixel_mode,night_mode"),
             ("com.oplus.flash.decision.by.aps.modelist", "common"),
             ("com.oplus.camera.wide.frame.ratio.support.modelist", "common"),
         )]
+        original = deepcopy(stock)
         result = patch_config(stock, [entry(key, "1") for key in FEATURE_KEYS])
+        self.assertEqual(stock, original)
         self.assertEqual(result[:2], duplicates)
         self.assertEqual(result[2], stock[2])
-        by_key = {item["VendorTag"]: item["Value"] for item in result}
-        self.assertEqual(by_key["com.oplus.camera.preview.hdr.cap.mode.value"], "professional")
-        self.assertIn("gr", by_key["com.oplus.camera.capture.hdr.cap.mode.value"].split(","))
+        by_key = {item["VendorTag"]: item for item in result}
+        stock_by_key = {item["VendorTag"]: item for item in stock}
+        preview_modes = by_key[preview_key]["Value"].split(",")
+        self.assertEqual(preview_modes, stock_by_key[preview_key]["Value"].split(",") + ["gr"])
+        self.assertEqual(int(by_key[preview_key]["Count"]), len(preview_modes))
+        capture_modes = by_key[capture_key]["Value"].split(",")
+        self.assertEqual(capture_modes, ["professional", "gr", "retroCamera"])
+        self.assertEqual(int(by_key[capture_key]["Count"]), len(capture_modes))
+        self.assertEqual(by_key[sdr_conversion_key], stock_by_key[sdr_conversion_key])
+        self.assertEqual(by_key["com.oplus.camera.preview.hdr.brightness.ratio"],
+                         stock_by_key["com.oplus.camera.preview.hdr.brightness.ratio"])
+        self.assertNotIn(sdr_output_key, by_key)
         torch_key = "com.oplus.feature.colorful.screen.torch.config"
-        self.assertEqual(int(by_key[torch_key], 2) & 4, 4)
-        # 已有补光位必须保留，POP 仅补上遮罩 shader 所需的位。
+        self.assertNotIn(torch_key, by_key)
+        # POP 修复不能启用全局反色补光，也不能改写原有补光功能位。
         stock.append(entry(torch_key, "11"))
         result = patch_config(stock, [entry(key, "1") for key in FEATURE_KEYS])
-        by_key = {item["VendorTag"]: item["Value"] for item in result}
-        self.assertEqual(by_key[torch_key], "111")
+        by_key = {item["VendorTag"]: item for item in result}
+        self.assertEqual(by_key[torch_key]["Value"], "11")
 
     def test_unit_preserves_sensor_and_stream_definitions(self):
         stock = {
@@ -104,17 +123,97 @@ class ProfileTests(unittest.TestCase):
         gr = next(g for g in result["aps_capture_configs"] if g["mode"] == "grmode")
         self.assertEqual(gr["entity"], stock["aps_capture_configs"][1]["entity"])
 
-    def test_preview_keeps_original_branches(self):
-        stock = {"multiAlgo": {"algo": [{"mode": "ORIGINAL_SENSOR_ALGO"}]}, "singleAlgo": {"algo": [
-            {"mode": "SINGLE_ALGO_BASIC_TONE", "condition": {"or": {"eq": ["captureMode", "APS_CAPMODE_MASTER"]}},
-             "nextMode": "SINGLE_ALGO_RECTIFY"},
-            {"mode": "SINGLE_ALGO_TILT_SHIFT", "condition": {"eq": ["blur", 1]}},
-        ]}}
+    def test_preview_extends_only_master_decisions_to_gr(self):
+        def master_condition(gate=None):
+            condition = {"eq": ["captureMode", "APS_CAPMODE_MASTER"]}
+            return condition if gate is None else {"and": {"eq": [gate, True], "and": condition}}
+
+        stock = {
+            "multiAlgo": {
+                "prerequisites": [
+                    {"mode": "PREREQUISITES_MASTER", "condition": master_condition(),
+                     "childMode": "ALGO_MASTER_SUPER_RAW"},
+                    {"mode": "PREREQUISITES_NORMAL",
+                     "condition": {"eq": ["captureMode", "APS_CAPMODE_REAR_NORMAL"]}},
+                ],
+                "algo": [{"mode": "ORIGINAL_SENSOR_ALGO"}],
+            },
+            "singleAlgo": {"algo": [
+                {"mode": "SINGLE_ALGO_BASIC_TONE",
+                 "condition": {"or": {"eq": ["captureMode", "APS_CAPMODE_MASTER"],
+                                        "eq1": ["captureMode", "APS_CAPMODE_XPAN"]}},
+                 "nextMode": "SINGLE_ALGO_RECTIFY"},
+                {"mode": "SINGLE_ALGO_RECTIFY", "condition": master_condition("rectifyEnabled")},
+                {"mode": "SINGLE_ALGO_HDR_TRANSFROM", "condition": master_condition("ultraHdrEnabled")},
+                {"mode": "SINGLE_ALGO_TILT_SHIFT",
+                 "condition": {"or": {"eq": ["captureMode", "APS_CAPMODE_MASTER"],
+                                        "eq1": ["blur", 1]}}},
+            ]},
+        }
+        original = deepcopy(stock)
         result = patch_decision(stock)
-        self.assertEqual(result["multiAlgo"], stock["multiAlgo"])
-        self.assertEqual(result["singleAlgo"]["algo"][1], stock["singleAlgo"]["algo"][1])
-        self.assertEqual(result["singleAlgo"]["algo"][0]["condition"]["or"]["or"],
-                         stock["singleAlgo"]["algo"][0]["condition"]["or"])
+        self.assertEqual(stock, original)
+        self.assertEqual(result["multiAlgo"]["algo"], stock["multiAlgo"]["algo"])
+        self.assertEqual(result["multiAlgo"]["prerequisites"][1],
+                         stock["multiAlgo"]["prerequisites"][1])
+        self.assertEqual(result["singleAlgo"]["algo"][3], stock["singleAlgo"]["algo"][3])
+
+        def evaluate(value, params):
+            if not isinstance(value, dict):
+                raise AssertionError(f"不支持的测试条件: {value!r}")
+            results = []
+            for operator, operands in value.items():
+                if operator.startswith("or"):
+                    results.append(any(evaluate({key: child}, params) for key, child in operands.items()))
+                elif operator.startswith("and"):
+                    results.append(all(evaluate({key: child}, params) for key, child in operands.items()))
+                elif operator.startswith("eq"):
+                    results.append(params.get(operands[0]) == operands[1])
+                else:
+                    raise AssertionError(f"不支持的测试运算符: {operator}")
+            return all(results)
+
+        original_conditions = {
+            entry["mode"]: entry["condition"]
+            for section in (stock["multiAlgo"]["prerequisites"], stock["singleAlgo"]["algo"])
+            for entry in section if "condition" in entry
+        }
+        patched_conditions = {
+            entry["mode"]: entry["condition"]
+            for section in (result["multiAlgo"]["prerequisites"], result["singleAlgo"]["algo"])
+            for entry in section if "condition" in entry
+        }
+        non_gr_cases = (
+            {"captureMode": "APS_CAPMODE_MASTER", "rectifyEnabled": True, "ultraHdrEnabled": True},
+            {"captureMode": "APS_CAPMODE_XPAN"},
+            {"captureMode": "APS_CAPMODE_REAR_NORMAL"},
+            {"captureMode": "APS_CAPMODE_REAR_NORMAL", "blur": 1},
+        )
+        for mode, condition in original_conditions.items():
+            for params in non_gr_cases:
+                with self.subTest(mode=mode, params=params):
+                    self.assertEqual(evaluate(patched_conditions[mode], params), evaluate(condition, params))
+
+        retro = {"captureMode": "APS_CAPMODE_REAR_NORMAL", "paramsHolder->retro_camera_mode": True}
+        self.assertFalse(evaluate(original_conditions["SINGLE_ALGO_BASIC_TONE"], retro))
+        self.assertTrue(evaluate(patched_conditions["SINGLE_ALGO_BASIC_TONE"], retro))
+        gr = {"captureMode": "APS_CAPMODE_GRMODE"}
+        self.assertTrue(evaluate(patched_conditions["PREREQUISITES_MASTER"], gr))
+        self.assertTrue(evaluate(patched_conditions["SINGLE_ALGO_BASIC_TONE"], gr))
+        self.assertTrue(evaluate(patched_conditions["SINGLE_ALGO_RECTIFY"], {**gr, "rectifyEnabled": True}))
+        self.assertFalse(evaluate(patched_conditions["SINGLE_ALGO_RECTIFY"], {**gr, "rectifyEnabled": False}))
+        self.assertTrue(evaluate(patched_conditions["SINGLE_ALGO_HDR_TRANSFROM"], {**gr, "ultraHdrEnabled": True}))
+        self.assertFalse(evaluate(patched_conditions["SINGLE_ALGO_HDR_TRANSFROM"], {**gr, "ultraHdrEnabled": False}))
+        self.assertEqual(patch_decision(original), result)
+
+    def test_generated_preview_profile_matches_stock_patch(self):
+        stock_path = PROJECT / "build/device-plk110/stock/oplus_camera_preview_decision_config.json"
+        if not stock_path.exists():
+            self.skipTest("本地没有 PLK110 原厂配置，仅执行内嵌决策 fixture")
+        stock = json.loads(stock_path.read_bytes())
+        profile = json.loads((PROJECT / "module/profiles/PLK110/config/"
+                              "oplus_camera_preview_decision_config.json").read_bytes())
+        self.assertEqual(profile, patch_decision(stock))
 
     def test_installer_requires_matching_device_firmware_camera_and_ksu(self):
         script = '''
@@ -137,19 +236,11 @@ MODPATH=$1
             with self.subTest(changes=changes):
                 with tempfile.TemporaryDirectory() as directory:
                     module = Path(directory)
-                    for name in ("customize.sh", "device.sh"):
+                    for name in ("customize.sh", "device.sh", "clear-overrides.sh"):
                         shutil.copy2(PROJECT / "module" / name, module / name)
-                    for model in ("PMA110", "PLK110"):
-                        profile = module / "profiles" / model
-                        profile.mkdir(parents=True)
-                        (profile / "settings.conf").touch()
-                    (module / "skip_mount").touch()
-                    (module / "mount-ready").touch()
                     result = subprocess.run(["sh", "-c", script, "test", str(module)],
                                             env={**base, **changes}, capture_output=True, text=True)
                     self.assertEqual(result.returncode == 0, accepted, result.stderr)
-                    self.assertEqual((module / "skip_mount").exists(), not accepted)
-                    self.assertEqual((module / "mount-ready").exists(), not accepted)
 
 
 if __name__ == "__main__":

@@ -203,14 +203,9 @@ def patch_config(stock, aura):
               result["com.oplus.pro.zoom.marked.zoomvalues"]["Value"])
     set_value("com.oplus.gr.mode.marked.zoomvalues", "1.1666667(28),1.6666667(40)")
     set_value("com.oplus.flashlevel.configurable.support", "1", "Byte")
-    # POP 的过渡遮罩依赖该位初始化 GL shader；保留原厂其他屏幕补光功能位。
-    torch_key = "com.oplus.feature.colorful.screen.torch.config"
-    torch_flags = int(result.get(torch_key, {"Value": "0"})["Value"], 2)
-    set_value(torch_key, format(torch_flags | 4, "b"))
     set_value("com.oplus.camera.mode.data.db.version", "103", "Byte")
-    # PLK110 的 GR 复用专业模式流，但主摄／超广角不具备对应的 HDR 预览链路。
-    # 保留原厂 HDR 预览模式表，避免启用不匹配的 HDR 色彩转换而发白。
     for key, additions in {
+        "com.oplus.camera.preview.hdr.cap.mode.value": ("gr",),
         "com.oplus.camera.capture.hdr.cap.mode.value": ("gr", "retroCamera"),
         "com.oplus.flash.decision.by.aps.modelist": ("retroCamera", "retro_camera_mode"),
         "com.oplus.camera.wide.frame.ratio.support.modelist": ("retroCamera",),
@@ -247,6 +242,45 @@ def patch_algorithms(stock):
 
 def patch_decision(stock):
     result = deepcopy(stock)
+
+    def extend_gr_mode(condition, mode):
+        matches = 0
+
+        def visit(value):
+            nonlocal matches
+            if isinstance(value, dict):
+                for key, child in list(value.items()):
+                    if child == ["captureMode", "APS_CAPMODE_MASTER"]:
+                        if key != "eq" or "or" in value:
+                            raise ValueError(f"{mode} 的 MASTER 条件结构不受支持")
+                        del value[key]
+                        value["or"] = {
+                            "eq": child,
+                            "eq1": ["captureMode", "APS_CAPMODE_GRMODE"],
+                        }
+                        matches += 1
+                    else:
+                        visit(child)
+            elif isinstance(value, list):
+                for child in value:
+                    visit(child)
+
+        visit(condition)
+        if matches != 1:
+            raise ValueError(f"{mode} 必须且只能包含一个 MASTER 条件，实际为 {matches}")
+
+    targets = (
+        (result["multiAlgo"]["prerequisites"], "PREREQUISITES_MASTER"),
+        (result["singleAlgo"]["algo"], "SINGLE_ALGO_BASIC_TONE"),
+        (result["singleAlgo"]["algo"], "SINGLE_ALGO_RECTIFY"),
+        (result["singleAlgo"]["algo"], "SINGLE_ALGO_HDR_TRANSFROM"),
+    )
+    for entries, mode in targets:
+        matches = [entry for entry in entries if entry["mode"] == mode]
+        if len(matches) != 1:
+            raise ValueError(f"决策表必须且只能包含一个 {mode}，实际为 {len(matches)}")
+        extend_gr_mode(matches[0]["condition"], mode)
+
     tone = next(e for e in result["singleAlgo"]["algo"] if e["mode"] == "SINGLE_ALGO_BASIC_TONE")
     tone["condition"] = {"or": {
         "or": tone["condition"]["or"],
@@ -272,12 +306,6 @@ def prepare(stock, output):
     }
     for name, value in configs.items():
         (output / name).write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    values = {e["VendorTag"]: e["Value"] for e in configs["oplus_camera_config"]}
-    setting_keys = [line.partition("=")[0] for line in
-                    (PROJECT / "module/profiles/PMA110/settings.conf").read_text().splitlines()]
-    setting_keys.append("com.oplus.feature.colorful.screen.torch.config")
-    (output.parent / "settings.conf").write_text(
-        "".join(f"{key}={values[key]}\n" for key in setting_keys), encoding="utf-8")
     (output / "camera_unit_feature_config.protobuf").write_bytes(
         patch_features((stock / "config/camera_unit_feature_config.protobuf").read_bytes()))
 

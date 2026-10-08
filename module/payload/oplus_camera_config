@@ -116,8 +116,8 @@
   {
     "VendorTag": "com.oplus.camera.capture.hdr.cap.mode.value",
     "Type": "String",
-    "Count": "9",
-    "Value": "common,portrait,professional,night,highPixel,xpan,underWater,telephoto,gr"
+    "Count": "10",
+    "Value": "common,portrait,professional,night,highPixel,xpan,underWater,telephoto,gr,retroCamera"
   },
   {
     "VendorTag": "com.oplus.feature.os15.new.filter.support",
@@ -4324,5 +4324,11 @@
     "Type": "String",
     "Count": "1",
     "Value": "5ZAQ0+UKt/L/0FTmN516mGa4JlKyhWIs2YIRiRoB/c8="
+  },
+  {
+    "VendorTag": "com.oplus.flashlevel.configurable.support",
+    "Type": "Byte",
+    "Count": "1",
+    "Value": "1"
   }
 ]

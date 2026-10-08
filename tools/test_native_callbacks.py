@@ -17,10 +17,17 @@ class NativeCallbackTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             work = Path(directory)
             (work / "android").mkdir()
+            (work / "sys").mkdir()
             (work / "android/log.h").write_text(
                 "#define ANDROID_LOG_INFO 4\n"
                 "#define ANDROID_LOG_ERROR 6\n"
                 "inline int __android_log_print(int, const char *, const char *, ...) { return 0; }\n"
+            )
+            (work / "sys/system_properties.h").write_text(
+                "#pragma once\n"
+                "#include <cstdlib>\n"
+                "#define PROP_VALUE_MAX 92\n"
+                "inline int __system_property_get(const char *, char *) { std::abort(); }\n"
             )
             source = work / "test.cpp"
             source.write_text(

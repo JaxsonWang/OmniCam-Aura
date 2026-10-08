@@ -1,0 +1,18 @@
+[
+  {
+    "model": "PMA110",
+    "firmware": null,
+    "cameraVersion": "7.006.77",
+    "configDir": "payload",
+    "bindIsp": true,
+    "bindGamma": true
+  },
+  {
+    "model": "PLK110",
+    "firmware": "PLK110_17.0.0.102(CN01)",
+    "cameraVersion": "7.006.100",
+    "configDir": "profiles/PLK110/config",
+    "bindIsp": false,
+    "bindGamma": false
+  }
+]

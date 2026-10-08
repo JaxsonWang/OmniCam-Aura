@@ -3524,8 +3524,8 @@
   {
     "VendorTag": "com.oplus.camera.preview.hdr.cap.mode.value",
     "Type": "String",
-    "Count": "5",
-    "Value": "common,professional,night,highPixel,underWater"
+    "Count": "6",
+    "Value": "common,professional,night,highPixel,underWater,gr"
   },
   {
     "VendorTag": "com.oplus.camera.preview.hdr.brightness.ratio",
@@ -3808,11 +3808,5 @@
     "Type": "Byte",
     "Count": "1",
     "Value": "1"
-  },
-  {
-    "VendorTag": "com.oplus.feature.colorful.screen.torch.config",
-    "Type": "String",
-    "Count": "1",
-    "Value": "100"
   }
 ]

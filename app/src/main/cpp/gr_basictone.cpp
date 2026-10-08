@@ -13,6 +13,7 @@
 #include <dlfcn.h>
 #include <mutex>
 #include <string>
+#include <sys/system_properties.h>
 #include <unordered_map>
 
 #include "native_hooks.h"
@@ -23,6 +24,8 @@ constexpr char kTag[] = "RicohGrPort";
 constexpr char kGrLmtPath[] = "/data/user/0/com.oplus.camera/files/ricoh_gr/lmt";
 constexpr char kHostLmtPath[] = "/odm/etc/camera/basictone/lmt";
 constexpr uint32_t kGrCaptureMode = 37;
+constexpr int kMasterCaptureMode = 33;
+constexpr uintptr_t kCaptureDecisionFactoryOffset = 0x20ee21c;
 
 // APS setting keys use libc++'s 24-byte short-string layout on this firmware.
 struct alignas(8) SettingKey {
@@ -40,6 +43,7 @@ int (*filterRegisterV1)(void *, int);
 int (*filterUnregisterV1)(void *, int);
 uintptr_t (*originalProcessCore)(void *, void *, void *, void *, void *);
 uintptr_t (*originalLoadLut)(void *, int);
+void *(*originalCaptureDecisionFactory)(void *, int);
 
 // getLmtParamsV1 runs per frame before BasicTone; remember which LUT tree belongs to each parameter
 // block so processCore/loadLut (which no longer see the frame) can pick it.
@@ -129,12 +133,45 @@ uintptr_t loadLut(void *object, int mode) {
     return originalLoadLut(object, mode);
 }
 
+bool isPlk110() {
+    char model[PROP_VALUE_MAX]{};
+    __system_property_get("ro.product.model", model);
+    return std::strcmp(model, "PLK110") == 0;
+}
+
+void *createCaptureDecision(void *factory, int mode) {
+    // PLK110 的 FeatureFactory 没有注册 GR(37)，会创建基类 decision 并产出空 pipeline。
+    // 这里只把工厂查询键映射到已注册的 MASTER(33)：factory、返回值和 frame 均保持原样，
+    // 因而 GR SDK、HDR 与后续原厂处理仍由原生链路决定。
+    int factoryMode = mode == static_cast<int>(kGrCaptureMode) ? kMasterCaptureMode : mode;
+    return originalCaptureDecisionFactory(factory, factoryMode);
+}
+
+void hookCaptureDecisionFactory(HookFunction hook, void *base) {
+    // PMA110 有自己的原厂注册表，不安装 PLK110 固定偏移 Hook。
+    if (!isPlk110()) return;
+    if (originalCaptureDecisionFactory) return;
+    void *address = static_cast<char *>(base) + kCaptureDecisionFactoryOffset;
+    int result = hook ? hook(address, reinterpret_cast<void *>(createCaptureDecision),
+                             reinterpret_cast<void **>(&originalCaptureDecisionFactory)) : -1;
+    if (result != 0 || !originalCaptureDecisionFactory) {
+        originalCaptureDecisionFactory = nullptr;
+        __android_log_print(ANDROID_LOG_ERROR, kTag,
+                            "capture decision factory hook failed at +0x%lx",
+                            static_cast<unsigned long>(kCaptureDecisionFactoryOffset));
+        return;
+    }
+    __android_log_print(ANDROID_LOG_INFO, kTag,
+                        "capture decision factory hook installed: GR(37) -> MASTER(33)");
+}
+
 void hookAlgoInterface(HookFunction hook, void *handle) {
     if (originalGetLmtParams) return;
     const char *lmtSymbol = "_ZN7android14getLmtParamsV1ER12ProcessParamPNS_15AlgoProcessDataEi";
     Dl_info info{};
     void *lmtAddress = dlsym(handle, lmtSymbol);
     if (!lmtAddress || !dladdr(lmtAddress, &info)) return;
+    hookCaptureDecisionFactory(hook, info.dli_fbase);
     // Same setting accessor that getLmtParamsV1 calls at 0x2035b78.
     getSettingInt = reinterpret_cast<decltype(getSettingInt)>(
         static_cast<char *>(info.dli_fbase) + 0x150cdd0);

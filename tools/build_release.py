@@ -15,6 +15,7 @@ def main():
     parser.add_argument("--sdk", type=Path, default=os.environ.get("ANDROID_HOME") or os.environ.get("ANDROID_SDK_ROOT"))
     args = parser.parse_args()
     env = os.environ.copy()
+    env["OMNICAM_PYTHON"] = sys.executable
     if args.sdk:
         env["ANDROID_HOME"] = str(args.sdk.resolve())
     props = dict(line.split("=", 1) for line in (PROJECT / "module/module.prop").read_text().splitlines() if "=" in line)

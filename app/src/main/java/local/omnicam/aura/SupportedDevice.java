@@ -7,8 +7,7 @@ final class SupportedDevice {
     private SupportedDevice() {}
 
     static boolean matches(String model, String firmware) {
-        return "PMA110".equals(model)
-            || ("PLK110".equals(model) && "PLK110_17.0.0.102(CN01)".equals(firmware));
+        return DevicePolicy.matches(model, firmware);
     }
 
     static boolean current() {
