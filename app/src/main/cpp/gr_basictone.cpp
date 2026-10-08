@@ -5,7 +5,8 @@
 //   * BasicTone: the GR LMT/SC/CWCM tree (staged by service.sh) instead of the host ODM tree;
 //   * no artistic vignette from the V1 vignette parameters;
 //   * the Meishe V1 filter node (clarity, vignette, grain), run with the GR capture mode.
-// Offsets are for PMA110 Camera 7.006.77 (libAlgoInterface.so / libBasicTonePhoto*.so).
+// 偏移对应模块随附的 libAlgoInterface.so / libBasicTonePhotoX9.so；
+// PLK110 的原厂 libAlgoInterface 与该库使用相同布局，设备检查位于 native_entry.cpp。
 #include <android/log.h>
 #include <cstdint>
 #include <cstring>
@@ -168,6 +169,8 @@ void hookBasicTone(HookFunction hook, void *handle) {
 }  // namespace
 
 void onLibraryLoadedForGr(HookFunction hook, const char *name, void *handle) {
+    // dlopen(nullptr) 表示当前进程，并非具名算法库；LSPosed 会原样传递这个空库名。
+    if (name == nullptr) return;
     if (std::strstr(name, "libAlgoInterface.so")) {
         hookAlgoInterface(hook, handle);
     } else if (std::strstr(name, "libBasicTonePhotoX9.so") || std::strstr(name, "libBasicTonePhoto.so")) {

@@ -66,7 +66,11 @@ public final class Symbols {
         long start = System.currentTimeMillis();
         String how = "error";
         try {
-            JSONObject spec = new JSONObject(readSpec()).getJSONObject(section);
+            JSONObject spec = new JSONObject(readSpec(SPEC)).getJSONObject(section);
+            if ("PLK110".equals(android.os.Build.MODEL)) {
+                JSONObject overrides = new JSONObject(readSpec("assets/symbols-plk110.json"));
+                spec = SymbolSearch.withOverrides(spec, overrides.optJSONObject(section));
+            }
             File apk = new File(apkPath);
             String key = CACHE_VERSION + "|" + sha1(spec.toString()) + "|" + apk.getAbsolutePath() + "|" + apk.length() + "|" + apk.lastModified();
             File cache = new File(dataDir, "cache/jiege_symbols_" + section + ".json");
@@ -261,14 +265,14 @@ public final class Symbols {
         }
     }
 
-    private static String readSpec() throws Exception {
-        InputStream in = Symbols.class.getClassLoader().getResourceAsStream(SPEC);
+    private static String readSpec(String asset) throws Exception {
+        InputStream in = Symbols.class.getClassLoader().getResourceAsStream(asset);
         if (in != null) return new String(readAll(in), "UTF-8");
         String path = modulePath;
-        if (path == null) throw new IllegalStateException(SPEC + " not readable (no module path)");
+        if (path == null) throw new IllegalStateException(asset + " not readable (no module path)");
         try (java.util.zip.ZipFile apk = new java.util.zip.ZipFile(path)) {
-            java.util.zip.ZipEntry entry = apk.getEntry(SPEC);
-            if (entry == null) throw new IllegalStateException(SPEC + " missing from " + path);
+            java.util.zip.ZipEntry entry = apk.getEntry(asset);
+            if (entry == null) throw new IllegalStateException(asset + " missing from " + path);
             return new String(readAll(apk.getInputStream(entry)), "UTF-8");
         }
     }

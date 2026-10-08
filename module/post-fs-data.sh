@@ -1,8 +1,8 @@
 #!/system/bin/sh
-# Bind the tested POP camera directories and GR ISP files.
+# 按机型挂载配置，共享滤镜资源；只有 PMA110 使用随附 ISP 和 Gamma。
 MODDIR=${0%/*}
 LOG=$MODDIR/bind.log
-set -u
+set -eu
 
 log() {
     echo "$1" >> "$LOG"
@@ -13,11 +13,12 @@ bind_file() {
     TARGET="$2"
     chown root:root "$SOURCE"
     chmod 0644 "$SOURCE"
-    chcon u:object_r:vendor_configs_file:s0 "$SOURCE" 2>/dev/null || true
+    chcon u:object_r:vendor_configs_file:s0 "$SOURCE" 2>> "$LOG"
     if mount --bind "$SOURCE" "$TARGET" >> "$LOG" 2>&1; then
         log "file bind ok $TARGET"
     else
         log "file bind FAIL $TARGET"
+        return 1
     fi
 }
 
@@ -26,7 +27,7 @@ label_tree() {
     chown -R root:root "$DIR"
     find "$DIR" -type d -exec chmod 0755 {} \;
     find "$DIR" -type f -exec chmod 0644 {} \;
-    find "$DIR" -exec chcon u:object_r:vendor_configs_file:s0 {} \; 2>>"$LOG" || true
+    chcon -R u:object_r:vendor_configs_file:s0 "$DIR" 2>>"$LOG"
 }
 
 bind_merged_dir() {
@@ -37,7 +38,7 @@ bind_merged_dir() {
     log "merge $TARGET from $LIVE"
     if [ ! -d "$LIVE" ]; then
         log "missing live $LIVE"
-        return 0
+        return 1
     fi
     rm -rf "$DEST"
     mkdir -p "$DEST"
@@ -51,14 +52,32 @@ bind_merged_dir() {
         log "dir bind ok $TARGET"
     else
         log "dir bind FAIL $TARGET"
+        return 1
     fi
 }
 
 : > "$LOG"
-log "begin"
+rm -f "$MODDIR/mount-ready"
+trap 'RESULT=$?; if [ "$RESULT" -ne 0 ]; then log "FAILED exit=$RESULT"; touch "$MODDIR/skip_mount"; fi' EXIT
+if [ -f "$MODDIR/skip_mount" ]; then
+    log '挂载已被阻止，修复原因后请重新安装模块'
+    exit 1
+fi
+# shellcheck source=module/device.sh
+if ! . "$MODDIR/device.sh" >> "$LOG" 2>&1; then
+    # 元模块随后才读取 skip_mount，阻止固件更新后自动覆盖原厂算法库。
+    exit 1
+fi
+log "begin device=$DEVICE"
 
-for NAME in camera_unit_config camera_unit_feature_config.protobuf oplus_camera_config oplus_camera_algo_switch_config oplus_camera_aps_config oplus_camera_preview_decision_config.json; do
-    bind_file "$MODDIR/payload/$NAME" "/odm/etc/camera/config/$NAME"
+for SOURCE in "$CONFIG_DIR"/*; do
+    [ -f "$SOURCE" ] || continue
+    NAME=${SOURCE##*/}
+    case "$NAME" in
+        camera_unit_config|camera_unit_feature_config.protobuf|oplus_camera_config|oplus_camera_algo_switch_config|oplus_camera_aps_config|oplus_camera_preview_decision_config.json)
+            bind_file "$SOURCE" "/odm/etc/camera/config/$NAME"
+            ;;
+    esac
 done
 
 bind_merged_dir /odm/etc/camera/meishe_lut "$MODDIR/payload/meishe_lut" "$MODDIR/merged/meishe_lut" /odm/etc/camera/meishe_lut
@@ -77,20 +96,25 @@ log "host_film=$(ls -l /odm/etc/camera/meishe_lut/fuji-nc.bin 2>&1)"
 log "retro_ini=$(ls -l /odm/etc/camera/basictone/setting_Retro/SimTool_Master.ini 2>&1)"
 log "host_setting=$(ls -d /odm/etc/camera/basictone/setting 2>&1)"
 
-for LENS in main wide tele ultratele; do
+if [ "$BIND_ISP" -eq 1 ]; then
+  for LENS in main wide tele ultratele; do
     NAME="com.qti.tuned.lighthouse${LENS}.bin"
     SOURCE="$MODDIR/payload/isp/$NAME"
     TARGET="/odm/lib64/camera/$NAME"
     chown root:root "$SOURCE"
     chmod 0644 "$SOURCE"
-    chcon u:object_r:vendor_file:s0 "$SOURCE" 2>>"$LOG" || true
+    chcon u:object_r:vendor_file:s0 "$SOURCE" 2>>"$LOG"
     if mount --bind "$SOURCE" "$TARGET" >>"$LOG" 2>&1; then
         log "isp bind ok $TARGET"
     else
         log "isp bind FAIL $TARGET"
+        exit 1
     fi
-done
-for NAME in gamma_preview_sdr_conf.json gamma_quick_sdr_conf.json gamma_preview_hdr_conf.json; do
+  done
+fi
+if [ "$BIND_GAMMA" -eq 1 ]; then
+  for NAME in gamma_preview_sdr_conf.json gamma_quick_sdr_conf.json gamma_preview_hdr_conf.json; do
     bind_file "$MODDIR/payload/gamma/$NAME" "/odm/etc/camera/$NAME"
-done
+  done
+fi
 log "end"

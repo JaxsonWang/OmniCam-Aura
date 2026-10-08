@@ -1,12 +1,17 @@
 #!/system/bin/sh
 
 MODDIR=${0%/*}
+exec >> "$MODDIR/service.log" 2>&1
+# shellcheck source=module/device.sh
+. "$MODDIR/device.sh" || exit 1
+if [ ! -f "$MODDIR/mount-ready" ]; then
+    echo 'Aura: 配置或算法库挂载未完成，请查看 bind.log' >&2
+    exit 1
+fi
 PREF_DIR=/data/user/0/com.oplus.camera/shared_prefs
 PREF_FILE="$PREF_DIR/override_config_data.xml"
 APP=/data/user/0/com.oplus.camera
 OUT=$APP/files/ricoh_gr/lmt
-GR_AVAILABLE='0.6(14),1(23),2(47),3(70),6(139),10(230)'
-GR_MARKED='1.2173913(28),1.7391304(40)'
 
 until [ -d "$APP" ]; do
     sleep 1
@@ -21,6 +26,12 @@ if [ ! -f "$PREF_FILE" ]; then
     printf '%s\n' '<?xml version="1.0" encoding="utf-8" standalone="yes" ?>' '<map>' '</map>' > "$PREF_FILE"
 fi
 
+BACKUP_DIR="$MODDIR/backup"
+mkdir -p "$BACKUP_DIR" || exit 1
+if [ ! -f "$BACKUP_DIR/override_config_data.xml" ]; then
+    cp -p "$PREF_FILE" "$BACKUP_DIR/override_config_data.xml" || exit 1
+fi
+
 set_config() {
     KEY=$1
     VALUE=$2
@@ -31,12 +42,9 @@ set_config() {
     fi
 }
 
-    set_config com.oplus.gr.mode.support 1
-    set_config com.oplus.camera.mode.data.db.version 102
-set_config com.oplus.available.gr.mode.zoomvalues "$GR_AVAILABLE"
-set_config com.oplus.gr.mode.marked.zoomvalues "$GR_MARKED"
-set_config com.oplus.camera.capture.hdr.cap.mode.value 'common,portrait,professional,night,highPixel,xpan,underWater,telephoto,gr,retroCamera'
-set_config com.oplus.camera.preview.hdr.cap.mode.value 'common,professional,night,highPixel,xpan,underWater,telephoto,gr'
+while IFS='=' read -r KEY VALUE; do
+    [ -n "$KEY" ] && set_config "$KEY" "$VALUE"
+done < "$SETTINGS"
 
 chown "$APP_UID:$APP_UID" "$PREF_FILE"
 chmod 0660 "$PREF_FILE"
@@ -84,16 +92,16 @@ restorecon -R "$APP/files/jiege"
 # Stage POP before the gallery wait so camera resources are ready at startup.
 ASSET_DIR="$APP/files/pop_port"
 PLD_APP="$APP/files/odm/etc/camera/pld_watermark"
-set_config com.oplus.feature.retro.camera.support 1
-# Flash brightness slider (柔和/反差); the camera drives it through com.oplus.flash.IntensityControl.
-set_config com.oplus.flashlevel.configurable.support 1
-set_config com.oplus.feature.tilt.shift.photo.support 1
-# Tilt-shift: mode_data.db is built once from the feature flags. If it has no tiltShift row yet, drop it once
-# (the marker keeps this to a single time) so the camera recreates it with the tilt-shift flag on.
+# 缺少移轴时只重建一次模式排序；先保存数据库，便于手动恢复原有排序。
 TILT_MARK="$MODDIR/tilt_db_reset"
 TILT_DB="$APP/databases/mode_data.db"
 if [ ! -f "$TILT_MARK" ] && [ -f "$TILT_DB" ] && ! grep -aq tiltShift "$TILT_DB"; then
     am force-stop com.oplus.camera
+    for DATABASE in "$TILT_DB" "$TILT_DB-journal" "$TILT_DB-wal" "$TILT_DB-shm"; do
+        if [ -f "$DATABASE" ]; then
+            cp -p "$DATABASE" "$BACKUP_DIR/${DATABASE##*/}" || exit 1
+        fi
+    done
     rm -f "$TILT_DB" "$TILT_DB-journal" "$TILT_DB-wal" "$TILT_DB-shm"
 fi
 touch "$TILT_MARK"

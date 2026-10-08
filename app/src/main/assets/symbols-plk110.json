@@ -1,0 +1,32 @@
+{
+  "camera": {
+    "CaptureParams.refreshEffectEntry": {
+      "kind": "method", "in": "@CaptureParams", "name": "F2",
+      "params": [], "ret": "void", "invokes": ["@GrSupport.supported"]
+    },
+    "Mode.effectEntry": {
+      "kind": "method", "in": "@BaseMode", "name": "Hi", "params": [], "ret": "boolean",
+      "invokes": ["Lcom/oplus/camera/module/BaseMode;->d1()Z"]
+    },
+    "FeaturePresenter.modeName": {
+      "kind": "field", "in": "@FeaturePresenter", "type": "java.lang.String",
+      "readBy": ["Lcom/oplus/camera/feature/arch/mvp/q;->getCameraMode()Ljava/lang/String;"]
+    },
+    "SoundPlayer.ringerReady": {
+      "kind": "method", "in": "@SoundPlayer", "params": [], "ret": "void",
+      "strings": ["checkRingerModeReady"], "invokes": ["Landroid/os/ConditionVariable;->block(J)Z"]
+    },
+    "SoundPlayer.silence": {
+      "kind": "method", "in": "@SoundPlayer", "params": ["long"], "ret": "void",
+      "strings": ["com.oplus.blockVibration.delay"], "notInvokes": ["@SoundPlayer.ringerReady"]
+    },
+    "SoundPlayer.unsilence": {
+      "kind": "method", "in": "@SoundPlayer", "params": ["long"], "ret": "void",
+      "strings": ["com.oplus.blockVibration.delay"], "invokes": ["@SoundPlayer.ringerReady"]
+    },
+    "Zoom.fadeLabels": {
+      "kind": "method", "in": "com.oplus.camera.feature.zoom.view.ZoomSeekBar",
+      "name": "n", "params": [], "ret": "void"
+    }
+  }
+}

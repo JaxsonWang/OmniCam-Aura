@@ -44,6 +44,18 @@ public final class SymbolSearch {
         this.bridge = bridge;
     }
 
+    /** 机型专用规则只覆盖已确认变化的符号，运行时和离线验证共用。 */
+    public static JSONObject withOverrides(JSONObject spec, JSONObject overrides) throws Exception {
+        JSONObject result = new JSONObject(spec.toString());
+        if (overrides != null) {
+            for (Iterator<String> it = overrides.keys(); it.hasNext(); ) {
+                String key = it.next();
+                result.put(key, overrides.getJSONObject(key));
+            }
+        }
+        return result;
+    }
+
     public static SymbolSearch run(DexKitBridge bridge, JSONObject spec) throws Exception {
         SymbolSearch search = new SymbolSearch(bridge);
         List<String> pending = new ArrayList<>();
