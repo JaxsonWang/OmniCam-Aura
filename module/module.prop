@@ -1,6 +1,6 @@
 id=omnicam_aura
 name=OmniCam Aura
-version=1.1.1
-versionCode=8
+version=1.1.2
+versionCode=9
 author=local-port
 description=RICOH GR, POP and Find X10 features for PMA110 and PLK110. Headless LSPosed companion.

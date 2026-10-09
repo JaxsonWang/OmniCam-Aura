@@ -74,7 +74,7 @@ class MountTests(unittest.TestCase):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.touch()
         script = '''
-getprop() { case "$1" in ro.product.model) echo "$MODEL";; ro.build.display.id) echo 'PLK110_17.0.0.102(CN01)';; esac; }
+getprop() { case "$1" in ro.product.model) echo "$MODEL";; ro.build.display.id) echo 'PLK110_17.0.0.102(CN01)';; ro.build.version.sdk) echo 37;; esac; }
 chown() { :; }
 chmod() { :; }
 chcon() { :; }
@@ -134,7 +134,7 @@ umount() {
             output.write(f'200 1 0:1 /adb/modules/other/system/odm/lib64/unrelated.so {unrelated} rw '
                          '- ext4 /dev/block/test rw\n')
         script = '''
-getprop() { case "$1" in ro.product.model) echo 'PLK110';; ro.build.display.id) echo 'PLK110_17.0.0.102(CN01)';; esac; }
+getprop() { case "$1" in ro.product.model) echo 'PLK110';; ro.build.display.id) echo 'PLK110_17.0.0.102(CN01)';; ro.build.version.sdk) echo 37;; esac; }
 umount() { echo "umount $1" >> "$TRACE"; }
 . "$0"
 '''

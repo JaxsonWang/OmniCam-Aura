@@ -8,6 +8,7 @@
 // 偏移对应模块随附的 libAlgoInterface.so / libBasicTonePhotoX9.so；
 // PLK110 的原厂 libAlgoInterface 与该库使用相同布局，设备检查位于 native_entry.cpp。
 #include <android/log.h>
+#include <atomic>
 #include <cstdint>
 #include <cstring>
 #include <dlfcn.h>
@@ -45,6 +46,12 @@ uintptr_t (*originalProcessCore)(void *, void *, void *, void *, void *);
 uintptr_t (*originalLoadLut)(void *, int);
 void *(*originalCaptureDecisionFactory)(void *, int);
 
+// 组内安装全部成功后才提交功能；失败留下的 wrapper 仅透传，不再次安装已有 Hook。
+std::atomic<bool> algoHooksAttempted{false};
+std::atomic<bool> algoHooksReady{false};
+std::atomic<bool> basicToneHooksAttempted{false};
+std::atomic<bool> basicToneHooksReady{false};
+
 // getLmtParamsV1 runs per frame before BasicTone; remember which LUT tree belongs to each parameter
 // block so processCore/loadLut (which no longer see the frame) can pick it.
 enum Profile { kUnknown = -1, kHost = 0, kGr = 1 };
@@ -61,16 +68,24 @@ bool isGrFrame(void *frame) {
 }
 
 void getLmtParams(void *parameters, void *frame, int stage) {
+    if (!algoHooksReady.load(std::memory_order_acquire)) {
+        originalGetLmtParams(parameters, frame, stage);
+        return;
+    }
     bool gr = isGrFrame(frame);
     originalGetLmtParams(parameters, frame, stage);
     FrameProfile profile;
     profile.profile = gr ? kGr : kHost;
     std::lock_guard<std::mutex> lock(profileMutex);
+    // BasicTone 安装中或已失败时不会消费记录，不能继续积累参数地址。
+    if (basicToneHooksAttempted.load(std::memory_order_acquire) &&
+        !basicToneHooksReady.load(std::memory_order_acquire)) return;
     frameProfiles[parameters] = profile;
 }
 
 void getVigParams(void *parameters, void *frame, void *planes) {
     originalGetVigParams(parameters, frame, planes);
+    if (!algoHooksReady.load(std::memory_order_acquire)) return;
     if (isGrFrame(frame)) static_cast<uint8_t *>(parameters)[0x1a] = 0;
 }
 
@@ -84,7 +99,9 @@ int withGrCaptureMode(int (*operation)(void *, int), void *frame, int stage) {
 }
 
 int filterProcessV2(void *frame, int stage) {
-    if (!isGrFrame(frame)) return originalFilterProcessV2(frame, stage);
+    if (!algoHooksReady.load(std::memory_order_acquire) || !isGrFrame(frame)) {
+        return originalFilterProcessV2(frame, stage);
+    }
     // Registration happens before gr_effect_size is attached, so the V1 node's whole lifecycle
     // is scoped to this call, where the frame is known to be GR. The per-image object is
     // consumed after capture; session and request modes are untouched.
@@ -96,6 +113,9 @@ int filterProcessV2(void *frame, int stage) {
 }
 
 uintptr_t processCore(void *object, void *input, void *output, void *parameters, void *metadata) {
+    if (!basicToneHooksReady.load(std::memory_order_acquire)) {
+        return originalProcessCore(object, input, output, parameters, metadata);
+    }
     int previous = activeProfile;
     activeProfile = kUnknown;
     FrameProfile profile;
@@ -118,6 +138,7 @@ uintptr_t processCore(void *object, void *input, void *output, void *parameters,
 }
 
 uintptr_t loadLut(void *object, int mode) {
+    if (!basicToneHooksReady.load(std::memory_order_acquire)) return originalLoadLut(object, mode);
     // Intermediate ODT passes carry no profile; they keep the object's current LUTs.
     if (activeProfile != kUnknown) {
         char *lmtPath = static_cast<char *>(object) + 0x008;  // 256-byte path buffer
@@ -140,6 +161,9 @@ bool isPlk110() {
 }
 
 void *createCaptureDecision(void *factory, int mode) {
+    if (!algoHooksReady.load(std::memory_order_acquire)) {
+        return originalCaptureDecisionFactory(factory, mode);
+    }
     // PLK110 的 FeatureFactory 没有注册 GR(37)，会创建基类 decision 并产出空 pipeline。
     // 这里只把工厂查询键映射到已注册的 MASTER(33)：factory、返回值和 frame 均保持原样，
     // 因而 GR SDK、HDR 与后续原厂处理仍由原生链路决定。
@@ -147,10 +171,10 @@ void *createCaptureDecision(void *factory, int mode) {
     return originalCaptureDecisionFactory(factory, factoryMode);
 }
 
-void hookCaptureDecisionFactory(HookFunction hook, void *base) {
+bool hookCaptureDecisionFactory(HookFunction hook, void *base) {
     // PMA110 有自己的原厂注册表，不安装 PLK110 固定偏移 Hook。
-    if (!isPlk110()) return;
-    if (originalCaptureDecisionFactory) return;
+    if (!isPlk110()) return true;
+    if (originalCaptureDecisionFactory) return true;
     void *address = static_cast<char *>(base) + kCaptureDecisionFactoryOffset;
     int result = hook ? hook(address, reinterpret_cast<void *>(createCaptureDecision),
                              reinterpret_cast<void **>(&originalCaptureDecisionFactory)) : -1;
@@ -159,48 +183,98 @@ void hookCaptureDecisionFactory(HookFunction hook, void *base) {
         __android_log_print(ANDROID_LOG_ERROR, kTag,
                             "capture decision factory hook failed at +0x%lx",
                             static_cast<unsigned long>(kCaptureDecisionFactoryOffset));
-        return;
+        return false;
     }
     __android_log_print(ANDROID_LOG_INFO, kTag,
-                        "capture decision factory hook installed: GR(37) -> MASTER(33)");
+                        "capture decision factory hook installed; awaiting GR group commit");
+    return true;
 }
 
 void hookAlgoInterface(HookFunction hook, void *handle) {
-    if (originalGetLmtParams) return;
+    if (algoHooksAttempted.load(std::memory_order_acquire)) return;
     const char *lmtSymbol = "_ZN7android14getLmtParamsV1ER12ProcessParamPNS_15AlgoProcessDataEi";
+    const char *vigSymbol = "_ZN7android14getVigParamsV1ER12ProcessParamPNS_15AlgoProcessDataERK15ApsBufferPlanes";
+    const char *processV1Symbol = "_ZN7android15doFilterProcessEPNS_15AlgoProcessDataEi";
+    const char *registerV1Symbol = "_ZN7android16doFilterRegisterEPNS_15AlgoProcessDataEi";
+    const char *unregisterV1Symbol = "_ZN7android18doFilterUnregisterEPNS_15AlgoProcessDataEi";
+    const char *processV2Symbol = "_ZN7android17doFilterProcessV2EPNS_15AlgoProcessDataEi";
+    bool complete = true;
+    auto resolve = [&](const char *symbol) {
+        void *address = dlsym(handle, symbol);
+        if (!address) {
+            complete = false;
+            __android_log_print(ANDROID_LOG_ERROR, kTag,
+                                "GR AlgoInterface contract missing: %s; hooks disabled", symbol);
+        }
+        return address;
+    };
+    // V2 的 GR 分支直接调用 V1 生命周期；必须先确认整组导出，再设置偏移或安装 Hook。
+    void *lmtAddress = resolve(lmtSymbol);
+    resolve(vigSymbol);
+    void *processV1Address = resolve(processV1Symbol);
+    void *registerV1Address = resolve(registerV1Symbol);
+    void *unregisterV1Address = resolve(unregisterV1Symbol);
+    resolve(processV2Symbol);
+    if (!complete) return;
     Dl_info info{};
-    void *lmtAddress = dlsym(handle, lmtSymbol);
-    if (!lmtAddress || !dladdr(lmtAddress, &info)) return;
-    hookCaptureDecisionFactory(hook, info.dli_fbase);
+    if (!dladdr(lmtAddress, &info)) {
+        __android_log_print(ANDROID_LOG_ERROR, kTag,
+                            "GR AlgoInterface base unavailable; hooks disabled");
+        return;
+    }
+    bool expected = false;
+    if (!algoHooksAttempted.compare_exchange_strong(expected, true)) return;
+    filterProcessV1 = reinterpret_cast<decltype(filterProcessV1)>(processV1Address);
+    filterRegisterV1 = reinterpret_cast<decltype(filterRegisterV1)>(registerV1Address);
+    filterUnregisterV1 = reinterpret_cast<decltype(filterUnregisterV1)>(unregisterV1Address);
     // Same setting accessor that getLmtParamsV1 calls at 0x2035b78.
     getSettingInt = reinterpret_cast<decltype(getSettingInt)>(
         static_cast<char *>(info.dli_fbase) + 0x150cdd0);
-    hookExport(hook, handle, lmtSymbol, reinterpret_cast<void *>(getLmtParams),
-               reinterpret_cast<void **>(&originalGetLmtParams), kTag);
-    filterProcessV1 = reinterpret_cast<decltype(filterProcessV1)>(
-        dlsym(handle, "_ZN7android15doFilterProcessEPNS_15AlgoProcessDataEi"));
-    filterRegisterV1 = reinterpret_cast<decltype(filterRegisterV1)>(
-        dlsym(handle, "_ZN7android16doFilterRegisterEPNS_15AlgoProcessDataEi"));
-    filterUnregisterV1 = reinterpret_cast<decltype(filterUnregisterV1)>(
-        dlsym(handle, "_ZN7android18doFilterUnregisterEPNS_15AlgoProcessDataEi"));
-    hookExport(hook, handle, "_ZN7android17doFilterProcessV2EPNS_15AlgoProcessDataEi",
-               reinterpret_cast<void *>(filterProcessV2),
-               reinterpret_cast<void **>(&originalFilterProcessV2), kTag);
-    hookExport(hook, handle,
-               "_ZN7android14getVigParamsV1ER12ProcessParamPNS_15AlgoProcessDataERK15ApsBufferPlanes",
-               reinterpret_cast<void *>(getVigParams),
-               reinterpret_cast<void **>(&originalGetVigParams), kTag);
+    if (!hookCaptureDecisionFactory(hook, info.dli_fbase) ||
+        !hookExport(hook, handle, lmtSymbol, reinterpret_cast<void *>(getLmtParams),
+                    reinterpret_cast<void **>(&originalGetLmtParams), kTag) ||
+        !hookExport(hook, handle, processV2Symbol, reinterpret_cast<void *>(filterProcessV2),
+                    reinterpret_cast<void **>(&originalFilterProcessV2), kTag) ||
+        !hookExport(hook, handle, vigSymbol, reinterpret_cast<void *>(getVigParams),
+                    reinterpret_cast<void **>(&originalGetVigParams), kTag)) {
+        __android_log_print(ANDROID_LOG_ERROR, kTag,
+                            "GR AlgoInterface hook group disabled; installed wrappers pass through");
+        return;
+    }
+    algoHooksReady.store(true, std::memory_order_release);
+    __android_log_print(ANDROID_LOG_INFO, kTag, "GR AlgoInterface hook group ready");
 }
 
 void hookBasicTone(HookFunction hook, void *handle) {
-    if (originalProcessCore && originalLoadLut) return;
+    if (basicToneHooksAttempted.load(std::memory_order_acquire)) return;
     // The X10 router exports getAlgoAPI only; its X9 backend keeps these BasicTone_OGL entries.
     const char *coreSymbol = "_ZN13BasicTone_OGL11processCoreEP5ImageS1_PvS2_";
-    if (!dlsym(handle, coreSymbol)) return;
-    hookExport(hook, handle, coreSymbol, reinterpret_cast<void *>(processCore),
-               reinterpret_cast<void **>(&originalProcessCore), kTag);
-    hookExport(hook, handle, "_ZN13BasicTone_OGL7loadLutE7CamMode",
-               reinterpret_cast<void *>(loadLut), reinterpret_cast<void **>(&originalLoadLut), kTag);
+    const char *lutSymbol = "_ZN13BasicTone_OGL7loadLutE7CamMode";
+    void *coreAddress = dlsym(handle, coreSymbol);
+    void *lutAddress = dlsym(handle, lutSymbol);
+    if (!coreAddress && !lutAddress) return;
+    if (!coreAddress || !lutAddress) {
+        __android_log_print(ANDROID_LOG_ERROR, kTag,
+                            "GR BasicTone contract missing: %s; hooks disabled",
+                            coreAddress ? lutSymbol : coreSymbol);
+        return;
+    }
+    bool expected = false;
+    if (!basicToneHooksAttempted.compare_exchange_strong(expected, true)) return;
+    if (!hookExport(hook, handle, coreSymbol, reinterpret_cast<void *>(processCore),
+                    reinterpret_cast<void **>(&originalProcessCore), kTag) ||
+        !hookExport(hook, handle, lutSymbol, reinterpret_cast<void *>(loadLut),
+                    reinterpret_cast<void **>(&originalLoadLut), kTag)) {
+        {
+            std::lock_guard<std::mutex> lock(profileMutex);
+            frameProfiles.clear();
+        }
+        __android_log_print(ANDROID_LOG_ERROR, kTag,
+                            "GR BasicTone hook group disabled; installed wrappers pass through");
+        return;
+    }
+    basicToneHooksReady.store(true, std::memory_order_release);
+    __android_log_print(ANDROID_LOG_INFO, kTag, "GR BasicTone hook group ready");
 }
 
 }  // namespace

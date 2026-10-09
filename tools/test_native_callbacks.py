@@ -33,7 +33,7 @@ class NativeCallbackTests(unittest.TestCase):
             source.write_text(
                 '#include "native_hooks.h"\n'
                 '#include <cstdlib>\n'
-                'void hookExport(HookFunction, void *, const char *, void *, void **, const char *) { std::abort(); }\n'
+                'bool hookExport(HookFunction, void *, const char *, void *, void **, const char *) { std::abort(); }\n'
                 'int main() {\n'
                 '  onLibraryLoadedForGr(nullptr, nullptr, reinterpret_cast<void *>(1));\n'
                 '  onLibraryLoadedForGr(nullptr, "", reinterpret_cast<void *>(1));\n'

@@ -215,10 +215,16 @@ class ProfileTests(unittest.TestCase):
                               "oplus_camera_preview_decision_config.json").read_bytes())
         self.assertEqual(profile, patch_decision(stock))
 
-    def test_installer_requires_matching_device_firmware_camera_and_ksu(self):
+    def test_installer_accepts_patch_family_and_rejects_unsupported_contracts(self):
         script = '''
-getprop() { case "$1" in ro.product.model) echo "$MODEL";; ro.build.display.id) echo "$FIRMWARE";; esac; }
-dumpsys() { echo "    versionName=$CAMERA"; }
+getprop() {
+    case "$1" in
+        ro.product.model) printf '%s\\n' "$MODEL" ;;
+        ro.build.display.id) printf '%s\\n' "$FIRMWARE" ;;
+        ro.build.version.sdk) printf '%s\\n' "$SDK" ;;
+    esac
+}
+dumpsys() { printf '    versionName=%s\\n' "$CAMERA"; }
 abort() { echo "$*" >&2; exit 1; }
 ui_print() { :; }
 set_perm() { :; }
@@ -227,12 +233,41 @@ MODPATH=$1
 . "$MODPATH/customize.sh"
 '''
         import os
-        base = {**os.environ, "MODEL": "PLK110", "FIRMWARE": "PLK110_17.0.0.102(CN01)",
-                "CAMERA": "7.006.100", "KSU": "true", "ARCH": "arm64"}
-        cases = [({}, True), ({"MODEL": "PMA110", "CAMERA": "7.006.77"}, True),
-                 ({"KSU": "false"}, False), ({"MODEL": "OTHER"}, False),
-                 ({"FIRMWARE": "PLK110_new_firmware"}, False), ({"CAMERA": "7.007.1"}, False)]
-        for changes, accepted in cases:
+        base = {**os.environ, "MODEL": "PLK110", "FIRMWARE": "PLK110_17.0.0.105(CN01)",
+                "SDK": "37", "CAMERA": "7.006.125", "KSU": "true", "ARCH": "arm64"}
+        cases = [
+            ({}, None),
+            ({"FIRMWARE": "PLK110_17.0.0.102(CN01)", "CAMERA": "7.006.100"}, None),
+            ({"FIRMWARE": "PLK110_17.0.0.9999(CN01)", "CAMERA": "7.006.9999"}, None),
+            ({"CAMERA": "7.006.0"}, None),
+            ({"CAMERA": "7.006.00125"}, None),
+            ({"MODEL": "PMA110", "CAMERA": "7.006.77", "SDK": "36"}, None),
+            ({"MODEL": "PMA110", "CAMERA": "7.006.125"}, "相机版本不匹配"),
+            ({"MODEL": "PMA110", "CAMERA": "7.006.077"}, "相机版本不匹配"),
+            ({"KSU": "false"}, "KernelSU"),
+            ({"ARCH": "x64"}, "arm64"),
+            ({"MODEL": "OTHER"}, "不支持的机型"),
+            ({"SDK": "36"}, "Android API 不兼容"),
+            ({"SDK": "38"}, "Android API 不兼容"),
+            ({"SDK": ""}, "Android API 不兼容"),
+            ({"FIRMWARE": "PLK110_17.0.1.105(CN01)"}, "系统分支不兼容"),
+            ({"FIRMWARE": "PLK110_17.0.0.105(EX01)"}, "系统分支不兼容"),
+            ({"FIRMWARE": "PLK110_17.0.0.(CN01)"}, "系统分支不兼容"),
+            ({"FIRMWARE": "PLK110_17.0.0.１０５(CN01)"}, "系统分支不兼容"),
+            ({"CAMERA": "7.007.1"}, "相机版本不匹配"),
+            ({"CAMERA": "8.006.125"}, "相机版本不匹配"),
+            ({"CAMERA": "7.006."}, "相机版本不匹配"),
+            ({"CAMERA": "7.006.-125"}, "相机版本不匹配"),
+            ({"CAMERA": "7.006.+125"}, "相机版本不匹配"),
+            ({"CAMERA": "7.006.125.1"}, "相机版本不匹配"),
+            ({"CAMERA": "7.006.125beta"}, "相机版本不匹配"),
+            ({"CAMERA": "7.006.１２５"}, "相机版本不匹配"),
+            ({"CAMERA": "7.006.١٢٥"}, "相机版本不匹配"),
+            ({"CAMERA": " 7.006.125"}, "相机版本不匹配"),
+            ({"CAMERA": "7.006.125 "}, "相机版本不匹配"),
+            ({"CAMERA": ""}, "相机版本不匹配"),
+        ]
+        for changes, error in cases:
             with self.subTest(changes=changes):
                 with tempfile.TemporaryDirectory() as directory:
                     module = Path(directory)
@@ -240,7 +275,9 @@ MODPATH=$1
                         shutil.copy2(PROJECT / "module" / name, module / name)
                     result = subprocess.run(["sh", "-c", script, "test", str(module)],
                                             env={**base, **changes}, capture_output=True, text=True)
-                    self.assertEqual(result.returncode == 0, accepted, result.stderr)
+                    self.assertEqual(result.returncode == 0, error is None, result.stderr)
+                    if error is not None:
+                        self.assertIn(error, result.stderr)
 
 
 if __name__ == "__main__":

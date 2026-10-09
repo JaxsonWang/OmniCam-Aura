@@ -1,0 +1,104 @@
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, -apple-system, "Noto Sans SC", sans-serif;
+  color: #202720;
+  background: #f3f5ef;
+  font-synthesis: none;
+  --surface: #fff;
+  --muted: #64705e;
+  --border: #e2e7dc;
+  --accent: #355b38;
+  --accent-soft: #e9f1e4;
+  --error: #a63027;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; }
+main {
+  width: min(100%, 620px);
+  margin: 0 auto;
+  padding: max(28px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
+}
+.page-header, .card-heading, .device-details > div, .light-state p {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.page-header { margin-bottom: 26px; }
+.eyebrow { margin: 0 0 7px; color: var(--muted); font-size: 12px; letter-spacing: .15em; }
+h1 { margin: 0; font-size: clamp(24px, 6.5vw, 30px); font-weight: 700; letter-spacing: -.04em; }
+h2 { margin: 0; font-size: 19px; font-weight: 650; }
+p { line-height: 1.7; }
+.version { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; text-align: right; }
+.card {
+  margin-bottom: 16px;
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  background: var(--surface);
+}
+.card-heading { align-items: flex-start; }
+.badge { border-radius: 7px; padding: 5px 8px; font-size: 11px; flex-shrink: 0; background: var(--accent-soft); color: var(--muted); }
+.badge[data-kind="success"] { color: var(--accent); }
+.badge[data-kind="error"] { color: var(--error); background: #fff0eb; }
+.caption { font-size: 12px; color: var(--muted); padding-top: 3px; }
+.device-details { margin: 24px 0 16px; }
+.device-details > div { align-items: baseline; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+dt { color: var(--muted); flex-shrink: 0; }
+dd { margin: 0; text-align: right; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); font-size: 13px; }
+.small { font-size: 12px; }
+.button {
+  min-height: 46px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  padding: 11px 17px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.button:focus-visible, #archive-path:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.button:disabled { opacity: .45; cursor: default; }
+.primary { background: var(--accent); color: white; width: 100%; }
+.secondary { background: var(--surface); border-color: var(--border); color: inherit; }
+.button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); opacity: 1; }
+.button-row { display: flex; gap: 10px; margin-top: 18px; }
+.button-row .button { flex: 1; }
+.light-state { margin: 20px 0; font-size: 13px; }
+.light-state p { margin: 10px 0; }
+.light-state strong { font-weight: 600; }
+.notice, .privacy-note { padding: 12px 14px; border-radius: 12px; font-size: 12px; background: var(--accent-soft); color: var(--accent); }
+.privacy-note { margin: 15px 0 20px; }
+.message { font-size: 13px; overflow-wrap: anywhere; white-space: pre-wrap; }
+.message:empty { display: none; }
+.message[data-kind="error"] { color: var(--error); }
+.message[data-kind="success"] { color: var(--accent); }
+.archive-result { border-top: 1px solid var(--border); margin-top: 20px; padding-top: 4px; }
+#archive-path { display: block; padding: 12px; border-radius: 10px; background: var(--accent-soft); line-height: 1.7; font-size: 12px; overflow-wrap: anywhere; user-select: text; -webkit-user-select: text; }
+#copy-path { margin-top: 14px; }
+footer { padding: 5px 12px; text-align: center; font-size: 11px; line-height: 1.8; color: var(--muted); }
+[hidden] { display: none !important; }
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color: #e4e9df;
+    background: #141914;
+    --surface: #1c231c;
+    --muted: #a8b4a1;
+    --border: #323e2f;
+    --accent: #b1d4a4;
+    --accent-soft: #283725;
+    --error: #ffb4a6;
+  }
+  .primary { color: #20311c; }
+  .badge[data-kind="error"] { background: #3d2823; }
+}
+
+@media (max-width: 360px) {
+  main { padding-left: 12px; padding-right: 12px; }
+  .card { padding: 18px; }
+  .page-header { gap: 10px; }
+}

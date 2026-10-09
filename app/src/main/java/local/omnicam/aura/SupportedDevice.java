@@ -2,15 +2,15 @@ package local.omnicam.aura;
 
 import android.os.Build;
 
-/** 与模块的机型配置保持一致，固件更新后禁止继续使用旧的原生布局。 */
+/** 与模块共用系统分支策略，同分支补丁更新继续由具体 Hook 合同判断。 */
 final class SupportedDevice {
     private SupportedDevice() {}
 
-    static boolean matches(String model, String firmware) {
-        return DevicePolicy.matches(model, firmware);
+    static boolean matches(String model, String firmware, int sdk) {
+        return DevicePolicy.matches(model, firmware, sdk);
     }
 
     static boolean current() {
-        return matches(Build.MODEL, Build.DISPLAY);
+        return matches(Build.MODEL, Build.DISPLAY, Build.VERSION.SDK_INT);
     }
 }

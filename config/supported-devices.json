@@ -2,15 +2,17 @@
   {
     "model": "PMA110",
     "firmware": null,
-    "cameraVersion": "7.006.77",
+    "androidSdk": null,
+    "cameraVersion": {"exact": "7.006.77"},
     "configDir": "payload",
     "bindIsp": true,
     "bindGamma": true
   },
   {
     "model": "PLK110",
-    "firmware": "PLK110_17.0.0.102(CN01)",
-    "cameraVersion": "7.006.100",
+    "firmware": {"prefix": "PLK110_17.0.0.", "suffix": "(CN01)"},
+    "androidSdk": 37,
+    "cameraVersion": {"prefix": "7.006.", "suffix": ""},
     "configDir": "profiles/PLK110/config",
     "bindIsp": false,
     "bindGamma": false

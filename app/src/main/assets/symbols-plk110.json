@@ -93,11 +93,21 @@
     }
   },
   "gallery": {
-    "Section.style": {
-      "kind": "field",
-      "in": "com.oplus.gallery.photoeditor.editingvvm.watermarkCamera.WatermarkCameraSection",
-      "name": "A0",
-      "type": "java.lang.String"
+    "Watermark.grTransferSupported": {
+      "kind": "method",
+      "name": "invoke",
+      "params": [],
+      "ret": "java.lang.Object",
+      "strings": [
+        "feature_is_camera_gr_supported"
+      ],
+      "fieldOwners": [
+        "com.oplus.gallery.photoeditor.editingvvm.watermarkmaster.WatermarkMasterVM"
+      ],
+      "numbers": [
+        1
+      ],
+      "static": false
     }
   }
 }

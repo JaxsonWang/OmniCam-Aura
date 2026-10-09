@@ -18,9 +18,12 @@ public final class ModuleEntry implements IXposedHookLoadPackage, IXposedHookZyg
     @Override public void handleLoadPackage(XC_LoadPackage.LoadPackageParam param) throws Throwable {
         if (!"com.oplus.camera".equals(param.packageName) && !"com.coloros.gallery3d".equals(param.packageName)) return;
         if (!SupportedDevice.current()) {
-            Log.i("Aura", "unsupported device/firmware: " + android.os.Build.MODEL + " / " + android.os.Build.DISPLAY);
+            Log.i("Aura", "unsupported device/firmware: " + android.os.Build.MODEL + " / " + android.os.Build.DISPLAY
+                + " / API " + android.os.Build.VERSION.SDK_INT);
             return;
         }
+        Log.i("Aura", "loading " + param.packageName + " / " + android.os.Build.MODEL + " / "
+            + android.os.Build.DISPLAY + " / API " + android.os.Build.VERSION.SDK_INT);
         ClassLoader loader = param.classLoader;
         if ("com.coloros.gallery3d".equals(param.packageName)) {
             Symbols.install("gallery", loader, param.appInfo.sourceDir, param.appInfo.dataDir);

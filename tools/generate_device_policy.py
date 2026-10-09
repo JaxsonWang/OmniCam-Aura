@@ -14,13 +14,28 @@ def render_java(devices):
     for device in devices:
         model = f'{json.dumps(device["model"])}.equals(model)'
         firmware = device['firmware']
-        conditions.append(f'({model} && {json.dumps(firmware)}.equals(firmware))' if firmware else model)
+        terms = [model]
+        if firmware:
+            terms.append(f'patchMatches(firmware, {json.dumps(firmware["prefix"])}, {json.dumps(firmware["suffix"])})')
+        if device['androidSdk'] is not None:
+            terms.append(f'sdk == {device["androidSdk"]}')
+        conditions.append('(' + ' && '.join(terms) + ')')
     return ('// 由 tools/generate_device_policy.py 生成，不手工修改。\n'
             'package local.omnicam.aura;\n\n'
             'final class DevicePolicy {\n'
             '    private DevicePolicy() {}\n'
-            '    static boolean matches(String model, String firmware) {\n'
+            '    static boolean matches(String model, String firmware, int sdk) {\n'
             '        return ' + '\n            || '.join(conditions) + ';\n'
+            '    }\n'
+            '    private static boolean patchMatches(String value, String prefix, String suffix) {\n'
+            '        if (value == null || !value.startsWith(prefix) || !value.endsWith(suffix)) return false;\n'
+            '        int end = value.length() - suffix.length();\n'
+            '        if (end <= prefix.length()) return false;\n'
+            '        for (int i = prefix.length(); i < end; i++) {\n'
+            "            char c = value.charAt(i);\n"
+            "            if (c < '0' || c > '9') return false;\n"
+            '        }\n'
+            '        return true;\n'
             '    }\n}\n')
 
 
@@ -29,27 +44,69 @@ def render_cpp(devices):
     for device in devices:
         model = f'std::strcmp(model, {json.dumps(device["model"])}) == 0'
         firmware = device['firmware']
-        conditions.append(f'({model} && std::strcmp(firmware, {json.dumps(firmware)}) == 0)' if firmware else model)
+        terms = [model]
+        if firmware:
+            terms.append(f'patchVersionMatches(firmware, {json.dumps(firmware["prefix"])}, {json.dumps(firmware["suffix"])})')
+        if device['androidSdk'] is not None:
+            terms.append(f'sdk == {device["androidSdk"]}')
+        conditions.append('(' + ' && '.join(terms) + ')')
     return ('// 由 tools/generate_device_policy.py 生成，不手工修改。\n'
             '#pragma once\n#include <cstring>\n\n'
             'namespace aura {\n'
-            'inline bool devicePolicyMatches(const char *model, const char *firmware) {\n'
+            'inline bool patchVersionMatches(const char *value, const char *prefix, const char *suffix) {\n'
+            '    if (!value) return false;\n'
+            '    const size_t size = std::strlen(value), start = std::strlen(prefix), tail = std::strlen(suffix);\n'
+            '    if (size <= start + tail || std::strncmp(value, prefix, start) != 0\n'
+            '        || std::strcmp(value + size - tail, suffix) != 0) return false;\n'
+            '    for (size_t i = start; i < size - tail; ++i) {\n'
+            "        if (value[i] < '0' || value[i] > '9') return false;\n"
+            '    }\n'
+            '    return true;\n'
+            '}\n'
+            'inline bool devicePolicyMatches(const char *model, const char *firmware, int sdk) {\n'
             '    return ' + '\n        || '.join(conditions) + ';\n'
             '}\n}\n')
 
 
 def render_shell(devices):
     result = ['#!/system/bin/sh', '# 由 config/supported-devices.json 生成；通过 tools/generate_device_policy.py 更新。',
-              '# shellcheck disable=SC2034', 'DEVICE=$(getprop ro.product.model)', 'case "$DEVICE" in']
+              '# shellcheck disable=SC2034',
+              '# 仅允许同分支的数字补丁号，不把未知主版本当作已兼容。',
+              'aura_match_patch_version() {',
+              '    case "$1" in "$2"*"$3") ;; *) return 1 ;; esac',
+              '    AURA_PATCH=${1#"$2"}', '    AURA_PATCH=${AURA_PATCH%"$3"}',
+              '    case "$AURA_PATCH" in \'\'|*[!0-9]*) return 1 ;; esac',
+              '}', '',
+              'camera_version_matches() {', '    case "$DEVICE" in']
     for device in devices:
+        rule = device['cameraVersion']
+        if 'exact' in rule:
+            check = f'[ "$1" = {shlex.quote(rule["exact"])} ]'
+        else:
+            check = f'aura_match_patch_version "$1" {shlex.quote(rule["prefix"])} {shlex.quote(rule["suffix"])}'
+        result.append(f'        {shlex.quote(device["model"])}) {check} ;;')
+    result.extend(['        *) return 1 ;;', '    esac', '}', '',
+                   'DEVICE=$(getprop ro.product.model)', 'FIRMWARE=$(getprop ro.build.display.id)',
+                   'ANDROID_SDK=$(getprop ro.build.version.sdk)', 'DEVICE_POLICY_ERROR=', 'case "$DEVICE" in'])
+    for device in devices:
+        rule = device['cameraVersion']
+        label = rule['exact'] if 'exact' in rule else rule['prefix'] + '*' + rule['suffix']
         result.extend([f'    {shlex.quote(device["model"])})',
-                       f'        CAMERA_VERSION={shlex.quote(device["cameraVersion"])}'])
+                       f'        CAMERA_VERSION={shlex.quote(label)}'])
         if device['firmware']:
-            result.extend([f'        if [ "$(getprop ro.build.display.id)" != {shlex.quote(device["firmware"])} ]; then',
-                           "            echo 'Aura: 固件不匹配，需要重新提取原厂配置' >&2", '            return 1', '        fi'])
+            firmware = device['firmware']
+            check = f'aura_match_patch_version "$FIRMWARE" {shlex.quote(firmware["prefix"])} {shlex.quote(firmware["suffix"])}'
+            result.extend([f'        if ! {check}; then',
+                           '            DEVICE_POLICY_ERROR="系统分支不兼容: $FIRMWARE"',
+                           '            echo "Aura: $DEVICE_POLICY_ERROR" >&2', '            return 1', '        fi'])
+        if device['androidSdk'] is not None:
+            result.extend([f'        if [ "$ANDROID_SDK" != {shlex.quote(str(device["androidSdk"]))} ]; then',
+                           '            DEVICE_POLICY_ERROR="Android API 不兼容: $ANDROID_SDK"',
+                           '            echo "Aura: $DEVICE_POLICY_ERROR" >&2', '            return 1', '        fi'])
         result.extend([f'        CONFIG_DIR="$MODDIR/"{shlex.quote(device["configDir"])}',
                        f'        BIND_ISP={int(device["bindIsp"])}', f'        BIND_GAMMA={int(device["bindGamma"])}', '        ;;'])
-    result.extend(['    *)', '        echo "Aura: 不支持的机型 $DEVICE" >&2', '        return 1', '        ;;', 'esac', ''])
+    result.extend(['    *)', '        DEVICE_POLICY_ERROR="不支持的机型: $DEVICE"',
+                   '        echo "Aura: $DEVICE_POLICY_ERROR" >&2', '        return 1', '        ;;', 'esac', ''])
     return '\n'.join(result)
 
 

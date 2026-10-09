@@ -224,6 +224,9 @@ public final class SymbolSearch {
         }
         for (String invoke : strings(s, "invokes")) matcher.addInvoke(methodDescriptor(invoke));
         for (String field : strings(s, "fields")) matcher.addUsingField(fieldDescriptor(field));
+        for (String owner : strings(s, "fieldOwners")) {
+            matcher.addUsingField(FieldMatcher.create().declaredClass(typeName(owner)));
+        }
         for (String caller : strings(s, "calledBy")) matcher.addCaller(methodDescriptor(caller));
         List<String> notInvokes = new ArrayList<>();
         for (String invoke : strings(s, "notInvokes")) notInvokes.add(methodDescriptor(invoke));

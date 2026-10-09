@@ -1735,12 +1735,6 @@
     "@Section.onCreate"
    ]
   },
-  "Section.style": {
-   "kind": "field",
-   "in": "com.oplus.gallery.photoeditor.editingvvm.watermarkCamera.WatermarkCameraSection",
-   "name": "z0",
-   "type": "java.lang.String"
-  },
   "Section.grChip": {
    "kind": "field",
    "in": "com.oplus.gallery.photoeditor.editingvvm.watermarkCamera.WatermarkCameraSection",

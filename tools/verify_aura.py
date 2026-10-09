@@ -53,8 +53,12 @@ with ZipFile(ARCHIVE) as bundle, ZipFile(APK) as apk:
     for name in ('qing_tou.bin', 'hu_po.bin', 'polaroid_sdr.mslut'):
         require('payload/meishe_lut/' + name in names, f'Missing LUT: {name}')
     for name in ('customize.sh', 'device.sh', 'clear-overrides.sh', 'mount-state.sh', 'post-fs-data.sh', 'service.sh',
-                 'inverse-light.sh', 'action.sh', 'uninstall.sh'):
+                 'inverse-light.sh', 'action.sh', 'control.sh', 'diagnostics.sh', 'uninstall.sh',
+                 'webroot/index.html', 'webroot/app.js', 'webroot/style.css'):
         require(bundle.read(name) == (MODULE / name).read_bytes(), f'Packaged module file mismatch: {name}')
+    require(not any(n.startswith(('.diagnostics.', 'runtime/', 'merged/')) or n in
+                    ('bind.log', 'service.log', 'mount-ready', 'skip_mount', 'mounted-targets') for n in names),
+            'Runtime state or diagnostics must not be packaged')
     require(apk.read('assets/symbols-plk110.json') == (PROJECT / 'app/src/main/assets/symbols-plk110.json').read_bytes(), 'PLK110 symbol rules missing or outdated')
     require(not any(n.endswith('/settings.conf') for n in names), 'Persistent camera override settings must not be packaged')
     require('post-mount.sh' not in names, 'Duplicate library binds must not be packaged')

@@ -183,8 +183,7 @@ final class GrCameraWatermark {
                 if (intent.getComponent() == null
                         || !"com.oplus.gallery.pictureeditorpage.PhotoEditorActivity".equals(intent.getComponent().getClassName())) return;
                 intent.putExtra("ai_master_watermark_mode_name", "gr");
-                String style = intent.getStringExtra("camera_watermark_rm_gr_photo_style_id");
-                if (style == null || style.isEmpty()) intent.putExtra("camera_watermark_rm_gr_photo_style_id", DEFAULT_STYLE);
+                // 原厂入口已从 DataManager 读取样式；空值表示用户关闭，不能再填默认样式。
                 intent.putExtra("is_camera_gr_supported", true);
             }
         });

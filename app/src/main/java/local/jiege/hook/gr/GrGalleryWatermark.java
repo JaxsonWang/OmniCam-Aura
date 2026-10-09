@@ -38,6 +38,16 @@ public final class GrGalleryWatermark {
 
     public static void install(ClassLoader classLoader) {
         Symbols symbols = Symbols.get();
+        if ("PLK110".equals(android.os.Build.MODEL)) {
+            // 相册的 GR 保存另受品牌判断限制；只放开专用能力查询，让原厂 Binder 保存样式和开关。
+            // 必须在开放编辑入口前安装，不能留下能预览却无法回传的 GR 水印界面。
+            XposedBridge.hookMethod(symbols.method("Watermark.grTransferSupported"), new XC_MethodHook() {
+                @Override protected void beforeHookedMethod(MethodHookParam param) {
+                    param.setResult(Boolean.TRUE);
+                }
+            });
+            Log.i(TAG, "gallery GR style transfer enabled");
+        }
         hookFeatureGates(symbols);
         hookStyleSource(symbols);
         hookArtwork(classLoader);
@@ -210,8 +220,7 @@ public final class GrGalleryWatermark {
                     try {
                         Object self = param.thisObject;
                         if (!openedFromGr(symbols, self)) return;
-                        Object style = symbols.get("Section.style", self);
-                        if (style == null || "".equals(style)) symbols.set("Section.style", self, "gr_style_1");
+                        // 样式和关闭状态由原厂入口传入；此处只开放布局，不写入第二份默认值。
                         symbols.call("Section.refreshStyles", self);
                         Object grChip = symbols.get("Section.grChip", self);
                         if (grChip != null) XposedHelpers.callMethod(grChip, "setChecked", true);

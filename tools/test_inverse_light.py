@@ -1,7 +1,9 @@
 """手动补光只改变显式选择后的运行时配置，默认配置和 PMA110 不受影响。"""
 
 import json
+import os
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -49,7 +51,8 @@ prepare_inverse_light_config "$2/manual-choice"
             self.assertEqual(int(generated[-1]['Value'], 2), 4)
 
     def test_invalid_choice_and_unexpected_base_key_fail_visibly(self):
-        cases = [('bad\n', None), ('1\n', [{'VendorTag': KEY, 'Value': '10'}])]
+        cases = [('bad\n', None), ('1\n\n', None), ('1\x00\n', None),
+                 ('1\n', [{'VendorTag': KEY, 'Value': '10'}])]
         for value, config in cases:
             with self.subTest(value=value), tempfile.TemporaryDirectory() as directory:
                 result, _, runtime = self.prepare(Path(directory), value, config=config)
@@ -67,17 +70,28 @@ prepare_inverse_light_config "$2/manual-choice"
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             state = root / 'persistent'
+            commands = root / 'bin'
+            commands.mkdir()
+            (commands / 'getprop').write_text('''#!/bin/sh
+case "$1" in
+ro.product.model) echo PLK110 ;;
+ro.build.display.id) echo 'PLK110_17.0.0.105(CN01)' ;;
+ro.build.version.sdk) echo 37 ;;
+esac
+''')
+            (commands / 'dumpsys').write_text("#!/bin/sh\necho '  versionName=7.006.125'\n")
+            for command in commands.iterdir():
+                command.chmod(0o755)
+            env = {**os.environ, 'PATH': str(commands) + os.pathsep + os.environ['PATH']}
             for generation in ('module', 'modules_update'):
                 module = root / generation
                 module.mkdir()
-                (module / 'device.sh').write_text((PROJECT / 'module/device.sh').read_text())
-                (module / 'action.sh').write_text((PROJECT / 'module/action.sh').read_text().replace(
+                for name in ('device.sh', 'inverse-light.sh', 'action.sh', 'module.prop'):
+                    shutil.copy2(PROJECT / 'module' / name, module / name)
+                (module / 'control.sh').write_text((PROJECT / 'module/control.sh').read_text().replace(
                     '/data/adb/omnicam_aura', str(state)))
-                script = '''
-getprop() { case "$1" in ro.product.model) echo PLK110;; ro.build.display.id) echo 'PLK110_17.0.0.102(CN01)';; esac; }
-. "$0"
-'''
-                result = subprocess.run(['sh', '-c', script, str(module / 'action.sh')], capture_output=True, text=True)
+                result = subprocess.run(['sh', str(module / 'action.sh')], env=env,
+                                        capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual((state / 'inverse-light').read_text(), '1\n' if generation == 'module' else '0\n')
             (state / 'legacy-overrides.snapshot').write_text('original')

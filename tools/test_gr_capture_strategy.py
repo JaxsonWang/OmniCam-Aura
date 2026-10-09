@@ -68,12 +68,13 @@ int fakeHook(void *address, void *replacement, void **backup) {
     return hookResult;
 }
 
-void hookExport(HookFunction, void *, const char *, void *, void **, const char *) {}
+bool hookExport(HookFunction, void *, const char *, void *, void **, const char *) { return true; }
 
 int main() {
     struct Factory { int marker; } factory{7};
     int createdDecision = 0;
     originalCaptureDecisionFactory = fakeFactory;
+    algoHooksReady.store(true);
 
     factoryResult = &createdDecision;
     assert(createCaptureDecision(&factory, 37) == &createdDecision);

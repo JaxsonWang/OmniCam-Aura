@@ -27,14 +27,16 @@ final class GrModeHooks {
     static void install(ClassLoader classLoader) throws Throwable {
         Symbols symbols = Symbols.get();
         SuperCall.verify();
-        hookModeEntry(symbols);
-        hookAppModeInheritance(symbols);
-        if ("PLK110".equals(android.os.Build.MODEL)) {
+        boolean plk110 = "PLK110".equals(android.os.Build.MODEL);
+        if (plk110) {
             GrHalSession.install(classLoader);
         } else {
             hookSdkModeInheritance(classLoader);
         }
+        hookAppModeInheritance(symbols);
         GrState.init(symbols);
+        // 核心 SDK、应用继承及状态全部安装完成后，才允许进入 GR 模式。
+        hookModeEntry(symbols);
         Log.guard(TAG, "GR entrance buttons", () -> hookEntranceButtons(symbols, classLoader));
         Log.guard(TAG, "GR effect branch", () -> hookMasterEffectBranch(symbols));
         Log.guard(TAG, "GR effect panel lifecycle", () -> hookEffectPanelLifecycle(symbols));

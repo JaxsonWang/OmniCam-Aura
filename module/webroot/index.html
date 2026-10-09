@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'none'; base-uri 'none'; form-action 'none'" />
+    <title>OmniCam Aura · 模块控制台</title>
+    <link rel="stylesheet" href="style.css" />
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <main>
+      <header class="page-header">
+        <div>
+          <p class="eyebrow">模块控制台</p>
+          <h1>OmniCam Aura</h1>
+        </div>
+        <span id="module-version" class="version">读取中</span>
+      </header>
+
+      <section class="card" aria-labelledby="device-title">
+        <div class="card-heading">
+          <h2 id="device-title">设备状态</h2>
+          <span id="compatibility" class="badge" data-kind="neutral">正在读取</span>
+        </div>
+        <dl class="device-details">
+          <div><dt>机型</dt><dd id="model">—</dd></div>
+          <div><dt>系统固件</dt><dd id="firmware">—</dd></div>
+          <div><dt>Android SDK</dt><dd id="android-sdk">—</dd></div>
+          <div><dt>相机版本</dt><dd id="camera-version">—</dd></div>
+        </dl>
+        <p id="compatibility-reason" class="muted">正在读取当前设备和模块状态。</p>
+        <button id="refresh" class="button secondary" type="button" disabled>刷新状态</button>
+        <p id="status-message" class="message" role="status" aria-live="polite"></p>
+      </section>
+
+      <section class="card" aria-labelledby="light-title">
+        <div class="card-heading">
+          <h2 id="light-title">反色补光</h2>
+          <span class="caption">PLK110</span>
+        </div>
+        <p class="muted">开放相机的反色补光能力。实际拍摄时，仍在相机内选择补光模式。相机的应用配置需关闭“卸载模块”，才能读取挂载配置。</p>
+        <div class="light-state">
+          <p>已保存选择 <strong id="selected-light">—</strong></p>
+          <p>系统挂载状态 <strong id="active-light">—</strong></p>
+        </div>
+        <p id="restart-note" class="notice" hidden>选择已改变，重启手机后生效。</p>
+        <div class="button-row">
+          <button id="light-on" class="button secondary" type="button" aria-pressed="false" disabled>开启补光</button>
+          <button id="light-off" class="button secondary" type="button" aria-pressed="false" disabled>关闭补光</button>
+        </div>
+        <p id="light-availability" class="muted small">正在读取补光状态。</p>
+        <p id="light-message" class="message" role="status" aria-live="polite"></p>
+      </section>
+
+      <section class="card" aria-labelledby="logs-title">
+        <h2 id="logs-title">诊断日志</h2>
+        <p class="muted">遇到问题时，先复现，再导出诊断包。你可以在文件管理器中找到它并分享给开发者。</p>
+        <p class="privacy-note">仅在本机生成，不自动上传。不读取照片或应用偏好；日志已过滤常见敏感字段，分享前请先解压检查内容。</p>
+        <button id="export" class="button primary" type="button" disabled>导出日志</button>
+        <p id="export-message" class="message" role="status" aria-live="polite"></p>
+        <div id="archive-result" class="archive-result" hidden>
+          <p class="small muted">诊断包位置</p>
+          <code id="archive-path" tabindex="0"></code>
+          <button id="copy-path" class="button secondary" type="button" disabled>复制路径</button>
+          <p id="copy-message" class="message" role="status" aria-live="polite"></p>
+        </div>
+      </section>
+
+      <footer>请从 KernelSU / KowSU 管理器的模块网页打开。</footer>
+      <noscript><p class="notice">此页面需要启用 JavaScript 才能读取模块状态和执行操作。</p></noscript>
+    </main>
+  </body>
+</html>

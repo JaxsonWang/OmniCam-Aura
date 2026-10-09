@@ -1,6 +1,7 @@
 // LSPosed native module entry for the camera process (listed in assets/native_init).
 #include <android/log.h>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <dlfcn.h>
 #include <sys/system_properties.h>
@@ -23,9 +24,11 @@ HookFunction installHook;
 bool supportedDevice() {
     char model[PROP_VALUE_MAX]{};
     char firmware[PROP_VALUE_MAX]{};
+    char sdk[PROP_VALUE_MAX]{};
     __system_property_get("ro.product.model", model);
     __system_property_get("ro.build.display.id", firmware);
-    return aura::devicePolicyMatches(model, firmware);
+    __system_property_get("ro.build.version.sdk", sdk);
+    return aura::devicePolicyMatches(model, firmware, std::atoi(sdk));
 }
 
 void onLibraryLoaded(const char *name, void *handle) {
@@ -34,17 +37,19 @@ void onLibraryLoaded(const char *name, void *handle) {
 
 }  // namespace
 
-void hookExport(HookFunction hook, void *handle, const char *symbol, void *replacement,
+bool hookExport(HookFunction hook, void *handle, const char *symbol, void *replacement,
                 void **backup, const char *tag) {
     void *address = dlsym(handle, symbol);
-    if (!address || !hook || hook(address, replacement, backup) != 0) {
+    if (!address || !hook || hook(address, replacement, backup) != 0 || !*backup) {
         __android_log_print(ANDROID_LOG_ERROR, tag, "native hook failed: %s", symbol);
+        return false;
     }
+    return true;
 }
 
 extern "C" __attribute__((visibility("default"), used))
 LibraryLoadedCallback native_init(const NativeApiEntries *entries) {
-    // 原生入口早于 Java Hook 执行，必须独立阻止在不匹配的固件上使用固定偏移。
+    // 原生入口早于 Java Hook 执行；先限定平台分支，再由载入库的实际导出约束 Hook。
     if (!supportedDevice()) {
         __android_log_print(ANDROID_LOG_ERROR, "Aura", "unsupported device/firmware; native hooks disabled");
         return nullptr;
